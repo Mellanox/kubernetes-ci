@@ -1,2 +1,2 @@
 # sriov-cni-ci
-CI for SRI-IOV CNI
+CI for Kubernetes Tests
