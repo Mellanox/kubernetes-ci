@@ -1,2 +1,2 @@
-# sriov-cni-ci
+# Kubernetes Tests
 CI for Kubernetes Tests
