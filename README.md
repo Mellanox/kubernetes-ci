@@ -1,2 +1,2 @@
 # Kubernetes Tests
-CI for Kubernetes Tests
+CI for SRIOV CNI
