@@ -159,8 +159,10 @@ spec:
         capabilities:
           add: ["IPC_LOCK"]
       resources:
+        requests:
+          intel.com/sriov: 2
         limits:
-          intel.com/sriov: 1
+          intel.com/sriov: 2
       command:
         - sh
         - -c
