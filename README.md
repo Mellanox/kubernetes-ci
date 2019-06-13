@@ -1,2 +1,2 @@
 # Kubernetes Tests
-CI for SRIOV CNI
+CI for deploying Kubernetes with Multus, SRIOV CNI, and Device Plugin.
