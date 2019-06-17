@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
@@ -6,12 +6,13 @@ export ARTIFACTS=$WORKSPACE/artifacts
 
 export GOROOT=${GOROOT:-/usr/local/go}
 export GOPATH=${WORKSPACE}
-export PATH=/usr/local/go/bin/:/opt/cni/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
+export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
 export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
 export ALLOW_PRIVILEGED=${ALLOW_PRIVILEGED:-true}
 export NET_PLUGIN=${NET_PLUGIN:-cni}
+export TIMEOUT=${TIMEOUT:-300}
 
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 
@@ -30,7 +31,7 @@ metadata:
 spec:
   restartPolicy: OnFailure
   containers:
-    - image: mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4
+    - image: alpine
       name: mofed-test-ctr
       imagePullPolicy: IfNotPresent
       securityContext:
@@ -45,21 +46,28 @@ spec:
         - sh
         - -c
         - |
-          ls -l /dev/infiniband /sys/class/net
+          ls -l /sys/class/net
           sleep 1000000
 EOF
     kubectl get pods
     kubectl create -f $sriov_pod
 
-    #TODO add timeout
     pod_status=$(kubectl get pods | grep mofed-test-pod-1 |awk  '{print $3}')
-    while [ $pod_status != 'Running' ]; do
+    let stop=$(date '+%s')+$TIMEOUT
+    d=$(date '+%s')
+    while [ $d -lt $stop ]; do
         echo "Waiting for pod to became Running"
         pod_status=$(kubectl get pods | grep mofed-test-pod-1 |awk  '{print $3}')
+        if [ $pod_status = 'Running' ]; then
+            return 0
+        fi
+        kubectl get pods | grep mofed-test-pod-1
         kubectl describe pod mofed-test-pod-1
-        sleep 30
+        sleep 5
+        d=$(date '+%s')
     done
-    return $?
+    echo "Error mofed-test-pod-1 is not up"
+    return 1
 }
 
 
@@ -74,4 +82,5 @@ test_pod
 status=$?
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
+echo "To stop K8S run # WORKSPACE=${WORKSPACE} ./multus_sriov_cni_stop.sh"
 exit $status

@@ -4,6 +4,7 @@ export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
+export TIMEOUT=300
 
 export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
@@ -17,9 +18,8 @@ export PLUGINS_REPO=${PLUGINS_REPO:-https://github.com/containernetworking/plugi
 export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/intel/sriov-network-device-plugin}
 export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
 
-export GOROOT=${GOROOT:-/usr/local/go}
 export GOPATH=${WORKSPACE}
-export PATH=/usr/local/go/bin/:/opt/cni/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
+export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
 export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
@@ -36,21 +36,43 @@ export MACVLAN_INTERFACE=${MACVLAN_INTERFACE:-eno1}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-enp3s0f0}
 export VFS_NUM=${VFS_NUM:-4}
 
-echo "Working under $WORKSPACE folder"
+echo "Working in $WORKSPACE"
 mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
-mkdir -p $CNI_CONF_DIR
-mkdir -p $CNI_BIN_DIR
 
-pushd $WORKSPACE
+[ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
+[ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
+
+cd $WORKSPACE
 
 
 function configure_multus {
-
     echo "Configure Multus"
     kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
-    sleep 60
+
+    kubectl -n kube-system get ds
+    rc=$?
+    let stop=$(date '+%s')+$TIMEOUT
+    d=$(date '+%s')
+    while [ $d -lt $stop ]; do
+       echo "Wait until multus is ready"
+       ready=$(kubectl -n kube-system get ds |grep kube-multus-ds-amd64|awk '{print $4}')
+       rc=$?
+       kubectl -n kube-system get ds
+       d=$(date '+%s')
+       sleep 5
+       if [ $ready -eq 1 ]; then
+           echo "System is ready"
+           break
+      fi
+    done
+    if [ $d -gt $stop ]; then
+        kubectl -n kube-system get ds
+        echo "kube-multus-ds-amd64 is not ready in $TIMEOUT sec"
+        exit 1
+    fi
+
     cat > $CNI_CONF_DIR/00-multus.conf <<EOF
 {
     "name": "multus-cni-network",
@@ -89,7 +111,6 @@ function download_cni {
     if ! $RECLONE ; then
         return 0
     fi
-    #trap read debug
 
     echo "Download $MULTUS_CNI_REPO"
     git clone $MULTUS_CNI_REPO $WORKSPACE/multus-cni
@@ -120,9 +141,7 @@ function download_cni {
     git checkout $SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH
     git log -p -1 > $ARTIFACTS/sriov-network-device-plugin.txt
     make build
-    cp $WORKSPACE/sriov-network-device-plugin/build/sriovdp $CNI_BIN_DIR
 
-    #TODO still missing sriov in $CNI_BI_DIR
     popd
     mkdir -p /etc/pcidp/
     cat > /etc/pcidp/config.json <<EOF
@@ -164,18 +183,25 @@ function install_k8s {
     $GOPATH/src/k8s.io/kubernetes/hack/local-up-cluster.sh 2>&1|tee > $LOGDIR/kubernetes.log &
     kubectl get pods
     rc=$?
-    #TODO add timeout and better k8s up check
-    while [ $rc -ne 0 ]; do
+    let stop=$(date '+%s')+$TIMEOUT
+    d=$(date '+%s')
+    while [ $d -lt $stop ]; do
        echo "Wait until K8S is up"
        kubectl get pods
        rc=$?
+       d=$(date '+%s')
        sleep 5
+       echo "rc=$?"
+       if [ $rc -eq 0 ]; then
+           echo "K8S is up and running"
+           return 0
+      fi
     done
-    return $k8s_pid
+    echo "K8S failed to run in $TIMEOUT sec"
+    exit 1
 }
 
 
-#TODO add check prereqs
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
 create_vfs
@@ -183,13 +209,10 @@ download_cni
 
 install_k8s
 configure_multus
-while [ ! -f $WORKSPACE/sriov-network-device-plugin/deployments/crdnetwork.yaml ]; do
-    #TODO add a proper timeout and error notification
-    sleep 1
-    echo "Waiting for $WORKSPACE/sriov-network-device-plugin/deployments/crdnetwork.yaml to be created"
-done
 
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
+kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
+
 kill $(pgrep sriovdp)
 $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &
 status=$?
