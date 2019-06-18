@@ -32,11 +32,8 @@ spec:
   restartPolicy: OnFailure
   containers:
     - image: alpine
-      name: mofed-test-ctr
+      name: alpine
       imagePullPolicy: IfNotPresent
-      securityContext:
-        capabilities:
-          add: ["IPC_LOCK"]
       resources:
         requests:
           intel.com/sriov: 3
