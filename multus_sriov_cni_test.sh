@@ -55,7 +55,7 @@ EOF
     while [ $d -lt $stop ]; do
         echo "Waiting for pod to became Running"
         pod_status=$(kubectl get pods | grep mofed-test-pod-1 |awk  '{print $3}')
-        if [ $pod_status = 'Running' ]; then
+        if [ "$pod_status" = 'Running' ]; then
             return 0
         fi
         kubectl get pods | grep mofed-test-pod-1
