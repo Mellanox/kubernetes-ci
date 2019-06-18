@@ -7,8 +7,8 @@ Running Installation of K8S, Multus e.t.c
 
 Running Tests
 
-    # WORKSPACE=$WORKSPACE ./multus_sriov_cni_test.sh
+    # WORKSPACE_K8S=$WORKSPACE_K8S ./multus_sriov_cni_test.sh
 
 Stopping K8S
 
-    # WORKSPACE=$WORKSPACE ./multus_sriov_cni_stop.sh
+    # WORKSPACE_K8S=$WORKSPACE_K8S ./multus_sriov_cni_stop.sh

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 export RECLONE=${RECLONE:-true}
-export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
-export LOGDIR=$WORKSPACE/logs
-export ARTIFACTS=$WORKSPACE/artifacts
+export WORKSPACE_K8S=${WORKSPACE_K8S:-/tmp/k8s_$$}
+export LOGDIR=$WORKSPACE_K8S/logs
+export ARTIFACTS=$WORKSPACE_K8S/artifacts
 export TIMEOUT=300
 
 export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
@@ -18,7 +18,7 @@ export PLUGINS_REPO=${PLUGINS_REPO:-https://github.com/containernetworking/plugi
 export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/intel/sriov-network-device-plugin}
 export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
 
-export GOPATH=${WORKSPACE}
+export GOPATH=${WORKSPACE_K8S}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
@@ -36,20 +36,20 @@ export MACVLAN_INTERFACE=${MACVLAN_INTERFACE:-eno1}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-enp3s0f0}
 export VFS_NUM=${VFS_NUM:-4}
 
-echo "Working in $WORKSPACE"
-mkdir -p $WORKSPACE
+echo "Working in $WORKSPACE_K8S"
+mkdir -p $WORKSPACE_K8S
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
 
 [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
 [ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
 
-cd $WORKSPACE
+cd $WORKSPACE_K8S
 
 
 function configure_multus {
     echo "Configure Multus"
-    kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
+    kubectl create -f $WORKSPACE_K8S/multus-cni/images/multus-daemonset.yml
 
     kubectl -n kube-system get ds
     rc=$?
@@ -113,31 +113,31 @@ function download_cni {
     fi
 
     echo "Download $MULTUS_CNI_REPO"
-    git clone $MULTUS_CNI_REPO $WORKSPACE/multus-cni
-    cd $WORKSPACE/multus-cni
+    git clone $MULTUS_CNI_REPO $WORKSPACE_K8S/multus-cni
+    cd $WORKSPACE_K8S/multus-cni
     git checkout $MULTUS_CNI_BRANCH
     git log -p -1 > $ARTIFACTS/multus-cni.txt
     cd -
 
     echo "Download $SRIOV_CNI_REPO"
-    git clone $SRIOV_CNI_REPO $WORKSPACE/sriov-cni
-    pushd $WORKSPACE/sriov-cni
+    git clone $SRIOV_CNI_REPO $WORKSPACE_K8S/sriov-cni
+    pushd $WORKSPACE_K8S/sriov-cni
     git checkout $SRIOV_CNI_BRANCH
     git log -p -1 > $ARTIFACTS/sriov-cni.txt
     popd
 
     echo "Download $PLUGINS_REPO"
-    git clone $PLUGINS_REPO $WORKSPACE/plugins
-    pushd $WORKSPACE/plugins
+    git clone $PLUGINS_REPO $WORKSPACE_K8S/plugins
+    pushd $WORKSPACE_K8S/plugins
     git checkout $PLUGINS_BRANCH
     git log -p -1 > $ARTIFACTS/plugins.txt
     bash ./build_linux.sh
-    cp $WORKSPACE/plugins/bin/* $CNI_BIN_DIR/
+    cp $WORKSPACE_K8S/plugins/bin/* $CNI_BIN_DIR/
     popd
 
     echo "Download $SRIOV_NETWORK_DEVICE_PLUGIN_REPO"
-    git clone $SRIOV_NETWORK_DEVICE_PLUGIN_REPO $WORKSPACE/sriov-network-device-plugin
-    pushd $WORKSPACE/sriov-network-device-plugin
+    git clone $SRIOV_NETWORK_DEVICE_PLUGIN_REPO $WORKSPACE_K8S/sriov-network-device-plugin
+    pushd $WORKSPACE_K8S/sriov-network-device-plugin
     git checkout $SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH
     git log -p -1 > $ARTIFACTS/sriov-network-device-plugin.txt
     make build
@@ -210,16 +210,16 @@ download_cni
 install_k8s
 configure_multus
 
-kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
+kubectl create -f $WORKSPACE_K8S/sriov-network-device-plugin/deployments/sriov-crd.yaml
+kubectl create -f $WORKSPACE_K8S/sriov-cni/images/sriov-cni-daemonset.yaml
 
 kill $(pgrep sriovdp)
-$WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &
+$WORKSPACE_K8S/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &
 status=$?
-echo "All code in $WORKSPACE"
+echo "All code in $WORKSPACE_K8S"
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
-echo "# WORKSPACE=$WORKSPACE ./multus_sriov_cni_test.sh"
+echo "# WORKSPACE_K8S=$WORKSPACE_K8S ./multus_sriov_cni_test.sh"
 exit $status

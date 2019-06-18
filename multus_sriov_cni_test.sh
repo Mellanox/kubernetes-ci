@@ -1,11 +1,11 @@
 #!/bin/bash
 
-export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
-export LOGDIR=$WORKSPACE/logs
-export ARTIFACTS=$WORKSPACE/artifacts
+export WORKSPACE_K8S=${WORKSPACE_K8S:-/tmp/k8s_$$}
+export LOGDIR=$WORKSPACE_K8S/logs
+export ARTIFACTS=$WORKSPACE_K8S/artifacts
 
 export GOROOT=${GOROOT:-/usr/local/go}
-export GOPATH=${WORKSPACE}
+export GOPATH=${WORKSPACE_K8S}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
@@ -16,7 +16,7 @@ export TIMEOUT=${TIMEOUT:-300}
 
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 
-pushd $WORKSPACE
+pushd $WORKSPACE_K8S
 
 
 function pod_create {
@@ -79,5 +79,5 @@ test_pod
 status=$?
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
-echo "To stop K8S run # WORKSPACE=$WORKSPACE ./multus_sriov_cni_stop.sh"
+echo "To stop K8S run # WORKSPACE_K8S=$WORKSPACE_K8S ./multus_sriov_cni_stop.sh"
 exit $status
