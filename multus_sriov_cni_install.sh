@@ -6,6 +6,8 @@ export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 export TIMEOUT=300
 
+export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-'remotes/origin/release-1.15'}
+
 export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
 
@@ -107,7 +109,7 @@ EOF
 }
 
 
-function download_cni {
+function download_and_build {
     if ! $RECLONE ; then
         return 0
     fi
@@ -116,32 +118,34 @@ function download_cni {
     git clone $MULTUS_CNI_REPO $WORKSPACE/multus-cni
     cd $WORKSPACE/multus-cni
     git checkout $MULTUS_CNI_BRANCH
-    git log -p -1 > $ARTIFACTS/multus-cni.txt
+    git log -p -1 > $ARTIFACTS/multus-cni-git.txt
     cd -
 
     echo "Download $SRIOV_CNI_REPO"
     git clone $SRIOV_CNI_REPO $WORKSPACE/sriov-cni
     pushd $WORKSPACE/sriov-cni
     git checkout $SRIOV_CNI_BRANCH
-    git log -p -1 > $ARTIFACTS/sriov-cni.txt
+    git log -p -1 > $ARTIFACTS/sriov-cni-git.txt
+    make build
+    \cp build/* $CNI_BIN_DIR/
     popd
 
     echo "Download $PLUGINS_REPO"
     git clone $PLUGINS_REPO $WORKSPACE/plugins
     pushd $WORKSPACE/plugins
     git checkout $PLUGINS_BRANCH
-    git log -p -1 > $ARTIFACTS/plugins.txt
+    git log -p -1 > $ARTIFACTS/plugins-git.txt
     bash ./build_linux.sh
-    cp $WORKSPACE/plugins/bin/* $CNI_BIN_DIR/
+    \cp bin/* $CNI_BIN_DIR/
     popd
 
     echo "Download $SRIOV_NETWORK_DEVICE_PLUGIN_REPO"
     git clone $SRIOV_NETWORK_DEVICE_PLUGIN_REPO $WORKSPACE/sriov-network-device-plugin
     pushd $WORKSPACE/sriov-network-device-plugin
     git checkout $SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH
-    git log -p -1 > $ARTIFACTS/sriov-network-device-plugin.txt
+    git log -p -1 > $ARTIFACTS/sriov-network-device-plugin-git.txt
     make build
-
+    \cp build/* $CNI_BIN_DIR/
     popd
     mkdir -p /etc/pcidp/
     cat > /etc/pcidp/config.json <<EOF
@@ -171,14 +175,13 @@ function create_vfs {
 function install_k8s {
     echo "Stopping previous K8S run"
     #TODO clean on exit
-    kill $(ps -ef |grep kube |awk '{print $2}')
     go get -d k8s.io/kubernetes
     cd $GOPATH/src/k8s.io/kubernetes
+    git checkout $KUBERNETES_BRANCH
     git log -p -1 > $ARTIFACTS/kubernetes.txt
     make
     go get -u github.com/tools/godep
     go get -u github.com/cloudflare/cfssl/cmd/...
-    kill -9 $(ps -ef |grep etcd|grep http|awk '{print $2}')
     $GOPATH/src/k8s.io/kubernetes/hack/install-etcd.sh
     $GOPATH/src/k8s.io/kubernetes/hack/local-up-cluster.sh 2>&1|tee > $LOGDIR/kubernetes.log &
     kubectl get pods
@@ -205,7 +208,7 @@ function install_k8s {
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
 create_vfs
-download_cni
+download_and_build
 
 install_k8s
 configure_multus
@@ -213,7 +216,6 @@ configure_multus
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
 
-kill $(pgrep sriovdp)
 $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &
 status=$?
 echo "All code in $WORKSPACE"
