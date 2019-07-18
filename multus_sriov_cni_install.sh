@@ -173,8 +173,12 @@ function create_vfs {
 
 
 function install_k8s {
-    echo "Stopping previous K8S run"
-    #TODO clean on exit
+    echo "Download and install kubectl"
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
+    chmod +x ./kubectl
+    mv ./kubectl /usr/local/bin/kubectl
+    
+    echo "Download K8S"
     go get -d k8s.io/kubernetes
     cd $GOPATH/src/k8s.io/kubernetes
     git checkout $KUBERNETES_BRANCH
