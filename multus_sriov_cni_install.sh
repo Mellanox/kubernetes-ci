@@ -32,6 +32,7 @@ export KUBE_ENABLE_CLUSTER_DNS=${KUBE_ENABLE_CLUSTER_DNS:-false}
 export API_HOST=$(hostname).$(hostname -y)
 export API_HOST_IP=$(hostname -I | awk '{print $1}')
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+export NETWORK=${NETWORK:-'192.168.1'}
 
 #TODO add autodiscovering
 export MACVLAN_INTERFACE=${MACVLAN_INTERFACE:-eno1}
@@ -51,6 +52,7 @@ cd $WORKSPACE
 
 function configure_multus {
     echo "Configure Multus"
+    kubectl delete -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
     kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
 
     kubectl -n kube-system get ds
@@ -91,11 +93,11 @@ function configure_multus {
             "mode": "bridge",
             "ipam": {
                 "type": "host-local",
-                "subnet": "192.168.1.0/24",
-                "rangeStart": "192.168.1.100",
-                "rangeEnd": "192.168.1.216",
+                "subnet": "${NETWORK}.0/24",
+                "rangeStart": "${NETWORK}.100",
+                "rangeEnd": "${NETWORK}.216",
                 "routes": [{"dst": "0.0.0.0/0"}],
-                "gateway": "192.168.1.1"
+                "gateway": "${NETWORK}.1"
             }
         }
     ],
@@ -217,7 +219,9 @@ download_and_build
 install_k8s
 configure_multus
 
+kubectl delete -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
+kubectl delete -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
 kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
 
 $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &

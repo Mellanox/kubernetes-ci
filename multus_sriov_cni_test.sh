@@ -13,6 +13,7 @@ export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
 export ALLOW_PRIVILEGED=${ALLOW_PRIVILEGED:-true}
 export NET_PLUGIN=${NET_PLUGIN:-cni}
 export TIMEOUT=${TIMEOUT:-300}
+export NETWORK=${NETWORK:-'192.168.1'}
 
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 
@@ -50,6 +51,7 @@ spec:
           sleep 1000000
 EOF
     kubectl get pods
+    kubectl delete -f $sriov_pod
     kubectl create -f $sriov_pod
 
     pod_status=$(kubectl get pods | grep mofed-test-pod-1 |awk  '{print $3}')
@@ -73,7 +75,16 @@ EOF
 
 function test_pod {
     kubectl exec -i mofed-test-pod-1 -- ip a
-    return $?
+    kubectl exec -i mofed-test-pod-1 -- ip addr show eth0
+    echo "Checking eth0 for address network $NETWORK"
+    kubectl exec -i mofed-test-pod-1 -- ip addr show eth0|grep "$NETWORK"
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Failed to find $NETWORK in eth0 address inside the pod"
+    else
+        echo "Passed to find $NETWORK in eth0 address inside the pod"
+    fi
+    return $status
 }
 
 
