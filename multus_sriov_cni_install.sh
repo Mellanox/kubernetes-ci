@@ -56,7 +56,6 @@ cd $WORKSPACE
 
 function configure_multus {
     echo "Configure Multus"
-    kubectl delete -f $WORKSPACE/multus-cni/images/multus-daemonset.yml 2>&1|tee > /dev/null
     kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
 
     kubectl -n kube-system get ds
@@ -254,9 +253,7 @@ download_and_build
 run_k8s
 configure_multus
 
-kubectl delete -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml 2>&1|tee > /dev/null
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl delete -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml 2>&1|tee > /dev/null
 kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
 
 $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &
