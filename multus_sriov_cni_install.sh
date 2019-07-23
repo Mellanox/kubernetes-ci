@@ -4,7 +4,7 @@ export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
-export TIMEOUT=300
+export TIMEOUT=${TIMEOUT:-300}
 
 export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-'remotes/origin/release-1.15'}
 
@@ -49,8 +49,6 @@ mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
 
-[ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
-[ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
 
 cd $WORKSPACE
 
@@ -120,6 +118,9 @@ function download_and_build {
     if ! $RECLONE ; then
         return 0
     fi
+
+    [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
+    [ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
 
     echo "Download $MULTUS_CNI_REPO"
     git clone $MULTUS_CNI_REPO $WORKSPACE/multus-cni
