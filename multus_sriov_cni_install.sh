@@ -56,6 +56,8 @@ cd $WORKSPACE
 
 function configure_multus {
     echo "Configure Multus"
+    date
+    sleep 30
     kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
 
     kubectl -n kube-system get ds
@@ -224,9 +226,7 @@ function create_vfs {
 
 function run_k8s {
     $GOPATH/src/k8s.io/kubernetes/hack/install-etcd.sh
-    sleep $POLL_INTERVAL
-    nohup $GOPATH/src/k8s.io/kubernetes/hack/local-up-cluster.sh 2>&1|tee > $LOGDIR/kubernetes.log &
-    sleep $POLL_INTERVAL
+    screen -S multus_kube -d -m bash -x $GOPATH/src/k8s.io/kubernetes/hack/local-up-cluster.sh
     kubectl get pods
     rc=$?
     let stop=$(date '+%s')+$TIMEOUT
@@ -258,8 +258,8 @@ configure_multus
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
 
-nohup $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &
-status=$?
+screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
+#status=$?
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
