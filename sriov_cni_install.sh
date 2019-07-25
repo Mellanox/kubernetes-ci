@@ -4,21 +4,27 @@ export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
-export TIMEOUT=300
+export TIMEOUT=${TIMEOUT:-300}
+export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-'remotes/origin/release-1.15'}
 
-export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
+export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
+# ex MULTUS_CNI_PR=345 will checkout https://github.com/intel/multus-cni/pull/345
+export MULTUS_CNI_PR=${MULTUS_CNI_PR:-''}
 
-export SRIOV_CNI_BRANCH=${SRIOV_CNI_BRANCH:-master}
 export SRIOV_CNI_REPO=${SRIOV_CNI_REPO:-https://github.com/intel/sriov-cni}
+export SRIOV_CNI_BRANCH=${SRIOV_CNI_BRANCH:-master}
+export SRIOV_CNI_PR=${SRIOV_CNI_PR:-''}
 
-export PLUGINS_BRANCH=${PLUGINS_BRANCH:-master}
 export PLUGINS_REPO=${PLUGINS_REPO:-https://github.com/containernetworking/plugins.git}
+export PLUGINS_BRANCH=${PLUGINS_BRANCH:-master}
+export PLUGINS_BRANCH_PR=${PLUGINS_BRANCH_PR:-''}
 
 export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/intel/sriov-network-device-plugin}
 export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
+export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR-''}
 
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
@@ -44,15 +50,14 @@ mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
 
-[ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
-[ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
 
 cd $WORKSPACE
 
 
 function configure_multus {
     echo "Configure Multus"
-    kubectl delete -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
+    date
+    sleep 30
     kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
 
     kubectl -n kube-system get ds
@@ -65,7 +70,7 @@ function configure_multus {
        rc=$?
        kubectl -n kube-system get ds
        d=$(date '+%s')
-       sleep 5
+       sleep $POLL_INTERVAL
        if [ $ready -eq 1 ]; then
            echo "System is ready"
            break
@@ -112,39 +117,67 @@ EOF
 
 
 function download_and_build {
-    if ! $RECLONE ; then
+    if [ "$RECLONE" != true ] ; then
         return 0
     fi
 
+    [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
+    [ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
+
     echo "Download $MULTUS_CNI_REPO"
+    rm -rf $WORKSPACE/multus-cni
     git clone $MULTUS_CNI_REPO $WORKSPACE/multus-cni
     cd $WORKSPACE/multus-cni
-    git checkout $MULTUS_CNI_BRANCH
+    # Check if part of Pull Request and
+    if test ${MULTUS_CNI_PR}; then
+        git fetch --tags --progress $MULTUS_CNI_REPO +refs/pull/*:refs/remotes/origin/pr/*
+        git pull origin pull/${MULTUS_CNI_PR}/head
+    elif test $MULTUS_CNI_BRANCH; then
+        git checkout $MULTUS_CNI_BRANCH
+    fi
     git log -p -1 > $ARTIFACTS/multus-cni-git.txt
     cd -
 
     echo "Download $SRIOV_CNI_REPO"
-    git clone $SRIOV_CNI_REPO $WORKSPACE/sriov-cni
+    rm -rf $WORKSPACE/sriov-cni
+    git clone ${SRIOV_CNI_REPO} $WORKSPACE/sriov-cni
     pushd $WORKSPACE/sriov-cni
-    git checkout $SRIOV_CNI_BRANCH
+    if test ${SRIOV_CNI_PR}; then
+        git fetch --tags --progress ${SRIOV_CNI_REPO} +refs/pull/*:refs/remotes/origin/pr/*
+        git pull origin pull/${SRIOV_CNI_PR}/head
+    elif test ${SRIOV_CNI_BRANCH}; then
+        git checkout ${SRIOV_CNI_BRANCH}
+    fi
     git log -p -1 > $ARTIFACTS/sriov-cni-git.txt
     make build
     \cp build/* $CNI_BIN_DIR/
     popd
 
     echo "Download $PLUGINS_REPO"
+    rm -rf $WORKSPACE/plugins
     git clone $PLUGINS_REPO $WORKSPACE/plugins
     pushd $WORKSPACE/plugins
-    git checkout $PLUGINS_BRANCH
+    if test ${PLUGINS_PR}; then
+        git fetch --tags --progress ${PLUGINS_REPO} +refs/pull/*:refs/remotes/origin/pr/*
+        git pull origin pull/${PLUGINS_PR}/head
+    elif test $PLUGINS_BRANCH; then
+        git checkout $PLUGINS_BRANCH
+    fi
     git log -p -1 > $ARTIFACTS/plugins-git.txt
     bash ./build_linux.sh
     \cp bin/* $CNI_BIN_DIR/
     popd
 
-    echo "Download $SRIOV_NETWORK_DEVICE_PLUGIN_REPO"
-    git clone $SRIOV_NETWORK_DEVICE_PLUGIN_REPO $WORKSPACE/sriov-network-device-plugin
+    echo "Download ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO}"
+    rm -rf $WORKSPACE/sriov-network-device-plugin
+    git clone ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} $WORKSPACE/sriov-network-device-plugin
     pushd $WORKSPACE/sriov-network-device-plugin
-    git checkout $SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH
+    if test ${SRIOV_NETWORK_DEVICE_PLUGIN_PR}; then
+        git fetch --tags --progress ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} +refs/pull/*:refs/remotes/origin/pr/*
+        git pull origin pull/${SRIOV_NETWORK_DEVICE_PLUGIN_PR}/head
+    elif test ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}; then
+        git checkout ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}
+    fi
     git log -p -1 > $ARTIFACTS/sriov-network-device-plugin-git.txt
     make build
     \cp build/* $CNI_BIN_DIR/
@@ -163,6 +196,23 @@ function download_and_build {
     ]
 }
 EOF
+
+    echo "Download and install kubectl"
+    rm -f ./kubectl /usr/local/bin/kubectl
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
+    chmod +x ./kubectl
+    mv ./kubectl /usr/local/bin/kubectl
+
+    echo "Download K8S"
+    rm -rf $GOPATH/src/k8s.io/kubernetes
+    go get -d k8s.io/kubernetes
+    cd $GOPATH/src/k8s.io/kubernetes
+    git checkout $KUBERNETES_BRANCH
+    git log -p -1 > $ARTIFACTS/kubernetes.txt
+    make
+    go get -u github.com/tools/godep
+    go get -u github.com/cloudflare/cfssl/cmd/...
+
     cp /etc/pcidp/config.json $ARTIFACTS
     return 0
 }
@@ -174,22 +224,9 @@ function create_vfs {
 }
 
 
-function install_k8s {
-    echo "Download and install kubectl"
-    curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
-    chmod +x ./kubectl
-    mv ./kubectl /usr/local/bin/kubectl
-
-    echo "Download K8S"
-    go get -d k8s.io/kubernetes
-    cd $GOPATH/src/k8s.io/kubernetes
-    git checkout $KUBERNETES_BRANCH
-    git log -p -1 > $ARTIFACTS/kubernetes.txt
-    make
-    go get -u github.com/tools/godep
-    go get -u github.com/cloudflare/cfssl/cmd/...
+function run_k8s {
     $GOPATH/src/k8s.io/kubernetes/hack/install-etcd.sh
-    $GOPATH/src/k8s.io/kubernetes/hack/local-up-cluster.sh 2>&1|tee > $LOGDIR/kubernetes.log &
+    screen -S multus_kube -d -m bash -x $GOPATH/src/k8s.io/kubernetes/hack/local-up-cluster.sh
     kubectl get pods
     rc=$?
     let stop=$(date '+%s')+$TIMEOUT
@@ -199,8 +236,7 @@ function install_k8s {
        kubectl get pods
        rc=$?
        d=$(date '+%s')
-       sleep 5
-       echo "rc=$?"
+       sleep $POLL_INTERVAL
        if [ $rc -eq 0 ]; then
            echo "K8S is up and running"
            return 0
@@ -216,16 +252,14 @@ function install_k8s {
 create_vfs
 download_and_build
 
-install_k8s
+run_k8s
 configure_multus
 
-kubectl delete -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl delete -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
 kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
 
-$WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log &
-status=$?
+screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
+#status=$?
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
