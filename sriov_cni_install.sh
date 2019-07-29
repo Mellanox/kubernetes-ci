@@ -50,7 +50,6 @@ mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
 
-
 cd $WORKSPACE
 
 
