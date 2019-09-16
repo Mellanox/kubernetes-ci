@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
@@ -50,14 +50,20 @@ mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
 
-
 cd $WORKSPACE
 
+echo "Get CPU architechture"
+export ARCH="amd"
+if [[ $(uname -a) == *"ppc"* ]]; then
+   export ARCH="ppc"
+fi
 
 function configure_multus {
     echo "Configure Multus"
     date
     sleep 30
+    sed -i 's/\/etc\/cni\/net.d\/multus.d\/multus.kubeconfig/\/var\/run\/kubernetes\/admin.kubeconfig/g' $WORKSPACE/multus-cni/images/multus-daemonset.yml
+
     kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
 
     kubectl -n kube-system get ds
@@ -66,7 +72,7 @@ function configure_multus {
     d=$(date '+%s')
     while [ $d -lt $stop ]; do
        echo "Wait until multus is ready"
-       ready=$(kubectl -n kube-system get ds |grep kube-multus-ds-amd64|awk '{print $4}')
+       ready=$(kubectl -n kube-system get ds |grep kube-multus-ds-${ARCH}|awk '{print $4}')
        rc=$?
        kubectl -n kube-system get ds
        d=$(date '+%s')
@@ -78,11 +84,12 @@ function configure_multus {
     done
     if [ $d -gt $stop ]; then
         kubectl -n kube-system get ds
-        echo "kube-multus-ds-amd64 is not ready in $TIMEOUT sec"
+        echo "kube-multus-ds-${ARCH}64 is not ready in $TIMEOUT sec"
         exit 1
     fi
 
-    cat > $CNI_CONF_DIR/00-multus.conf <<EOF
+    multus_config=$CNI_CONF_DIR/000-multus.conf
+    cat > $multus_config <<EOF
 {
     "name": "multus-cni-network",
     "type": "multus",
@@ -111,14 +118,15 @@ function configure_multus {
     "kubeconfig": "$KUBECONFIG"
 }
 EOF
-    cp $CNI_CONF_DIR/00-multus.conf $ARTIFACTS
+    cp $multus_config $ARTIFACTS
     return $?
 }
 
 
 function download_and_build {
+    status=0
     if [ "$RECLONE" != true ] ; then
-        return 0
+        return $status
     fi
 
     [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
@@ -150,6 +158,13 @@ function download_and_build {
     fi
     git log -p -1 > $ARTIFACTS/sriov-cni-git.txt
     make build
+    let status=status+$?
+    make image
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build ${SRIOV_CNI_REPO} ${SRIOV_CNI_BRANCH}"
+        return $status
+    fi
     \cp build/* $CNI_BIN_DIR/
     popd
 
@@ -165,6 +180,12 @@ function download_and_build {
     fi
     git log -p -1 > $ARTIFACTS/plugins-git.txt
     bash ./build_linux.sh
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build $PLUGINS_REPO $PLUGINS_BRANCH"
+        return $status
+    fi
+
     \cp bin/* $CNI_BIN_DIR/
     popd
 
@@ -180,6 +201,14 @@ function download_and_build {
     fi
     git log -p -1 > $ARTIFACTS/sriov-network-device-plugin-git.txt
     make build
+    let status=status+$?
+    make image
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}"
+        return $status
+    fi
+
     \cp build/* $CNI_BIN_DIR/
     popd
     mkdir -p /etc/pcidp/
@@ -196,10 +225,13 @@ function download_and_build {
     ]
 }
 EOF
+    cp $WORKSPACE/sriov-network-device-plugin/images/configMap.yaml $ARTIFACTS/
+    sed -i 's/mlnx_sriov_rdma/sriov/g' $ARTIFACTS/configMap.yaml
+    sed -i 's/mlx5_ib/mlx5_core/g' $ARTIFACTS/configMap.yaml
 
     echo "Download and install kubectl"
     rm -f ./kubectl /usr/local/bin/kubectl
-    curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/${ARCH}64/kubectl
     chmod +x ./kubectl
     mv ./kubectl /usr/local/bin/kubectl
 
@@ -210,6 +242,12 @@ EOF
     git checkout $KUBERNETES_BRANCH
     git log -p -1 > $ARTIFACTS/kubernetes.txt
     make
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build K8S $KUBERNETES_BRANCH"
+        return $status
+    fi
+
     go get -u github.com/tools/godep
     go get -u github.com/cloudflare/cfssl/cmd/...
 
@@ -255,8 +293,12 @@ download_and_build
 run_k8s
 configure_multus
 
+sed -i 's/intel_sriov_netdevice/sriov/g' $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
+kubectl create -f $WORKSPACE/sriov-network-device-plugin/images/sriovdp-daemonset.yaml
+kubectl create -f $ARTIFACTS/configMap.yaml
 kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
+cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/images/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
 
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 #status=$?
@@ -265,5 +307,5 @@ echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
-echo "# WORKSPACE=$WORKSPACE ./multus_sriov_cni_test.sh"
+echo "# WORKSPACE=$WORKSPACE ./sriov_cni_test.sh"
 exit $status
