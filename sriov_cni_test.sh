@@ -13,6 +13,7 @@ export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
 export ALLOW_PRIVILEGED=${ALLOW_PRIVILEGED:-true}
 export NET_PLUGIN=${NET_PLUGIN:-cni}
 export TIMEOUT=${TIMEOUT:-300}
+export POLL_INTERVAL=${POLL_INTERVAL:-10}
 export NETWORK=${NETWORK:-'192.168.1'}
 
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
@@ -52,6 +53,7 @@ spec:
 EOF
     kubectl get pods
     kubectl delete -f $sriov_pod
+    sleep ${POLL_INTERVAL}
     kubectl create -f $sriov_pod
 
     pod_status=$(kubectl get pods | grep mofed-test-pod-1 |awk  '{print $3}')
@@ -60,12 +62,16 @@ EOF
     while [ $d -lt $stop ]; do
         echo "Waiting for pod to became Running"
         pod_status=$(kubectl get pods | grep mofed-test-pod-1 |awk  '{print $3}')
-        if [ $pod_status = 'Running' ]; then
+        if [ "$pod_status" == "Running" ]; then
             return 0
+        elif [ "$pod_status" == "UnexpectedAdmissionError" ]; then
+            kubectl delete -f $sriov_pod
+            sleep ${POLL_INTERVAL}
+            kubectl create -f $sriov_pod
         fi
         kubectl get pods | grep mofed-test-pod-1
         kubectl describe pod mofed-test-pod-1
-        sleep 5
+        sleep ${POLL_INTERVAL}
         d=$(date '+%s')
     done
     echo "Error mofed-test-pod-1 is not up"
