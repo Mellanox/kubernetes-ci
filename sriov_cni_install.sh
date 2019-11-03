@@ -7,7 +7,7 @@ export ARTIFACTS=$WORKSPACE/artifacts
 export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
-export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-'remotes/origin/release-1.15'}
+export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-'remotes/origin/release-1.16'}
 
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
 export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
@@ -38,7 +38,10 @@ export KUBE_ENABLE_CLUSTER_DNS=${KUBE_ENABLE_CLUSTER_DNS:-false}
 export API_HOST=$(hostname).$(hostname -y)
 export API_HOST_IP=$(hostname -I | awk '{print $1}')
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
-export NETWORK=${NETWORK:-'192.168.1'}
+
+# generate random network
+N=$((1 + RANDOM % 128))
+export NETWORK=${NETWORK:-"192.168.$N"}
 
 #TODO add autodiscovering
 export MACVLAN_INTERFACE=${MACVLAN_INTERFACE:-eno1}
@@ -88,22 +91,14 @@ function configure_multus {
         exit 1
     fi
 
-    multus_config=$CNI_CONF_DIR/000-multus.conf
+    multus_config=$CNI_CONF_DIR/99-multus.conf
     cat > $multus_config <<EOF
-{
-    "name": "multus-cni-network",
-    "type": "multus",
-    "capabilities": {
-        "portMappings": true
-    },
-    "delegates": [
-        {
-            "cniVersion": "0.3.0",
-            "name": "macvlan-network",
-            "type": "macvlan",
-            "master": "$MACVLAN_INTERFACE",
-            "mode": "bridge",
-            "ipam": {
+    {
+        "cniVersion": "0.3.0",
+        "name": "macvlan-network",
+        "type": "macvlan",
+        "mode": "bridge",
+          "ipam": {
                 "type": "host-local",
                 "subnet": "${NETWORK}.0/24",
                 "rangeStart": "${NETWORK}.100",
@@ -112,11 +107,6 @@ function configure_multus {
                 "gateway": "${NETWORK}.1"
             }
         }
-    ],
-    "logFile": "$LOGDIR/multus.log",
-    "logLevel": "debug",
-    "kubeconfig": "$KUBECONFIG"
-}
 EOF
     cp $multus_config $ARTIFACTS
     return $?
@@ -131,6 +121,7 @@ function download_and_build {
 
     [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
     [ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
+    [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
     echo "Download $MULTUS_CNI_REPO"
     rm -rf $WORKSPACE/multus-cni
@@ -225,7 +216,7 @@ function download_and_build {
     ]
 }
 EOF
-    cp $WORKSPACE/sriov-network-device-plugin/images/configMap.yaml $ARTIFACTS/
+    cp $WORKSPACE/sriov-network-device-plugin/deployments/configMap.yaml $ARTIFACTS/
     sed -i 's/mlnx_sriov_rdma/sriov/g' $ARTIFACTS/configMap.yaml
     sed -i 's/mlx5_ib/mlx5_core/g' $ARTIFACTS/configMap.yaml
 
@@ -293,13 +284,13 @@ download_and_build
 run_k8s
 configure_multus
 
+
 sed -i 's/intel_sriov_netdevice/sriov/g' $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl create -f $WORKSPACE/sriov-network-device-plugin/images/sriovdp-daemonset.yaml
+kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml
 kubectl create -f $ARTIFACTS/configMap.yaml
-kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
-cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/images/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
-
+#kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
+cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml /tmp/k8s_29757/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 #status=$?
 echo "All code in $WORKSPACE"
@@ -308,4 +299,5 @@ echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
 echo "# WORKSPACE=$WORKSPACE ./sriov_cni_test.sh"
+
 exit $status
