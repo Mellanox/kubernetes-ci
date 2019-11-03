@@ -17,6 +17,8 @@ kill $(ps -ef |grep kube |awk '{print $2}')
 kill -9 $(ps -ef |grep etcd|grep http|awk '{print $2}')
 ps -ef |egrep "kube|local-up-cluster|etcd"
 
+[ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
+
 cp /tmp/kube*.log $LOGDIR
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"

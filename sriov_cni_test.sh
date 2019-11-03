@@ -52,7 +52,7 @@ spec:
           sleep 1000000
 EOF
     kubectl get pods
-    kubectl delete -f $sriov_pod
+    kubectl delete -f $sriov_pod 2>&1|tee > /dev/null
     sleep ${POLL_INTERVAL}
     kubectl create -f $sriov_pod
 
