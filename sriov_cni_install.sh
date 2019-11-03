@@ -7,7 +7,8 @@ export ARTIFACTS=$WORKSPACE/artifacts
 export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
-export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-'remotes/origin/release-1.16'}
+export KUBERNETES_VER=v1.16
+export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-"remotes/origin/release-$KUBERNETES_VER"}
 
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
 export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
@@ -222,7 +223,7 @@ EOF
 
     echo "Download and install kubectl"
     rm -f ./kubectl /usr/local/bin/kubectl
-    curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/${ARCH}64/kubectl
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VER}.0/bin/linux/${ARCH}64/kubectl
     chmod +x ./kubectl
     mv ./kubectl /usr/local/bin/kubectl
 
@@ -287,12 +288,11 @@ configure_multus
 
 sed -i 's/intel_sriov_netdevice/sriov/g' $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml
+kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VER}/sriovdp-daemonset.yaml
 kubectl create -f $ARTIFACTS/configMap.yaml
-#kubectl create -f $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml
-cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml /tmp/k8s_29757/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
+
+cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VER}/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
-#status=$?
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
