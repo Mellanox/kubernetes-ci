@@ -281,9 +281,22 @@ function run_k8s {
 
 create_vfs
 download_and_build
+if [ $? -ne 0 ]; then
+    echo "Failed to download and build components"
+    exit 1
+fi
 
 run_k8s
+if [ $? -ne 0 ]; then
+    echo "Failed to run K8S"
+    exit 1
+fi
+
 configure_multus
+if [ $? -ne 0 ]; then
+    echo "Failed to configure Multus"
+    exit 1
+fi
 
 
 sed -i 's/intel_sriov_netdevice/sriov/g' $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
@@ -298,6 +311,6 @@ echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
-echo "# WORKSPACE=$WORKSPACE ./sriov_cni_test.sh"
+echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./sriov_cni_test.sh"
 
 exit $status

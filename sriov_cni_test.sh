@@ -14,7 +14,7 @@ export ALLOW_PRIVILEGED=${ALLOW_PRIVILEGED:-true}
 export NET_PLUGIN=${NET_PLUGIN:-cni}
 export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
-export NETWORK=${NETWORK:-'192.168.1'}
+export NETWORK=${NETWORK:-'192.168'}
 
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 
