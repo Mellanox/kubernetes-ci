@@ -8,7 +8,7 @@ export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 # can be <latest_stable|master|vA.B.C>
-export KUBERNETES_VER=${KUBERNETES_VER:-latest_stable}
+export KUBERNETES_VERSION=${KUBERNETES_VERSION:-latest_stable}
 export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-master}
 
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
@@ -224,20 +224,20 @@ EOF
 
     echo "Download and install kubectl"
     rm -f ./kubectl /usr/local/bin/kubectl
-    if [ ${KUBERNETES_VER} == 'latest_stable' ]; then
-        export KUBERNETES_VER=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VER}/bin/linux/${ARCH}64/kubectl
+    if [ ${KUBERNETES_VERSION} == 'latest_stable' ]; then
+        export KUBERNETES_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/${ARCH}64/kubectl
         chmod +x ./kubectl
         mv ./kubectl /usr/local/bin/kubectl
         kubectl version
-    elif [ ${KUBERNETES_VER} == 'master' ]; then
+    elif [ ${KUBERNETES_VERSION} == 'master' ]; then
         git clone -b ${KUBERNETES_BRANCH} --single-branch --depth=1  https://github.com/kubernetes/kubernetes
         cd kubernetes/
         git show --summary
         make
         mv ./_output/local/go/bin/kubectl /usr/local/bin/kubectl
     else
-        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VER}/bin/linux/${ARCH}64/kubectl
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/${ARCH}64/kubectl
         mv ./kubectl /usr/local/bin/kubectl
     fi
     chmod +x /usr/local/bin/kubectl
@@ -317,10 +317,10 @@ fi
 
 sed -i 's/intel_sriov_netdevice/sriov/g' $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VER}/sriovdp-daemonset.yaml
+kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VERSION}/sriovdp-daemonset.yaml
 kubectl create -f $ARTIFACTS/configMap.yaml
 
-cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VER}/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
+cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VERSION}/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
