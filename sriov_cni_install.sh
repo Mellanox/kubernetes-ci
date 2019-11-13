@@ -7,8 +7,9 @@ export ARTIFACTS=$WORKSPACE/artifacts
 export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
-export KUBERNETES_VER=v1.16
-export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-"remotes/origin/release-$KUBERNETES_VER"}
+# can be <latest_stable|master|vA.B.C>
+export KUBERNETES_VER=${KUBERNETES_VER:-latest_stable}
+export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-master}
 
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
 export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
@@ -223,15 +224,30 @@ EOF
 
     echo "Download and install kubectl"
     rm -f ./kubectl /usr/local/bin/kubectl
-    curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VER}.0/bin/linux/${ARCH}64/kubectl
-    chmod +x ./kubectl
-    mv ./kubectl /usr/local/bin/kubectl
+    if [ ${KUBERNETES_VER} == 'latest_stable' ]; then
+        export KUBERNETES_VER=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VER}/bin/linux/${ARCH}64/kubectl
+        chmod +x ./kubectl
+        mv ./kubectl /usr/local/bin/kubectl
+        kubectl version
+    elif [ ${KUBERNETES_VER} == 'master' ]; then
+        git clone -b ${KUBERNETES_BRANCH} --single-branch --depth=1  https://github.com/kubernetes/kubernetes
+        cd kubernetes/
+        git show --summary
+        make
+        mv ./_output/local/go/bin/kubectl /usr/local/bin/kubectl
+    else
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VER}/bin/linux/${ARCH}64/kubectl
+        mv ./kubectl /usr/local/bin/kubectl
+    fi
+    chmod +x /usr/local/bin/kubectl
+    kubectl version
 
     echo "Download K8S"
     rm -rf $GOPATH/src/k8s.io/kubernetes
     go get -d k8s.io/kubernetes
     cd $GOPATH/src/k8s.io/kubernetes
-    git checkout $KUBERNETES_BRANCH
+    #git checkout $KUBERNETES_BRANCH
     git log -p -1 > $ARTIFACTS/kubernetes.txt
     make
     let status=status+$?
