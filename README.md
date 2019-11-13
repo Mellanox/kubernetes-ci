@@ -35,7 +35,8 @@ $ export TIMEOUT=100
 | ARTIFACTS | $WORKSPACE/artifacts | folder with configuration artifacts |
 | TIMEOUT | 300 |  timeout in seconds for the components to be active |
 | POLL_INTERVAL | 10 | Polling interval in seconds to check components |
-| KUBERNETES_BRANCH | remotes/origin/release-1.16 | Kubernetes branch |
+| KUBERNETES_VERSION | latest_stable | Kubernetes version ex: latest_stable,v1.16.0| |
+| KUBERNETES_BRANCH | master | Kubernetes branch |
 | MULTUS_CNI_REPO | https://github.com/intel/multus-cni | Multus repo |
 | MULTUS_CNI_BRANCH | master | Multus branch |
 | MULTUS_CNI_PR | '' | Multus Pull Request. ex MULTUS_CNI_PR=345 will checkout https://github.com/intel/multus-cni/pull/345 |
