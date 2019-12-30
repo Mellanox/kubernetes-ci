@@ -47,7 +47,7 @@ export NETWORK=${NETWORK:-"192.168.$N"}
 
 #TODO add autodiscovering
 export MACVLAN_INTERFACE=${MACVLAN_INTERFACE:-eno1}
-export SRIOV_INTERFACE=${SRIOV_INTERFACE:-enp3s0f0}
+export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 export VFS_NUM=${VFS_NUM:-4}
 
 echo "Working in $WORKSPACE"
@@ -265,6 +265,9 @@ EOF
 
 
 function create_vfs {
+    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
+        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
+    fi
     echo 0 > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
     echo $VFS_NUM > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
 }
@@ -317,10 +320,10 @@ fi
 
 sed -i 's/intel_sriov_netdevice/sriov/g' $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VERSION}/sriovdp-daemonset.yaml
+kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
 kubectl create -f $ARTIFACTS/configMap.yaml
 
-cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-${KUBERNETES_VERSION}/sriovdp-daemonset.yaml $WORKSPACE/sriov-cni/images/sriov-cni-daemonset.yaml $ARTIFACTS/
+cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
