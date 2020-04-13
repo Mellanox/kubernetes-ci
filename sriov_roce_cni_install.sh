@@ -16,6 +16,11 @@ export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
 # ex MULTUS_CNI_PR=345 will checkout https://github.com/intel/multus-cni/pull/345
 export MULTUS_CNI_PR=${MULTUS_CNI_PR:-''}
 
+export RDMA_CNI_REPO=${RDMA_CNI_REPO:-https://github.com/Mellanox/rdma-cni}
+export RDMA_CNI_BRANCH=${RDMA_CNI_BRANCH:-master}
+export RDMA_CNI_PR=${RDMA_CNI_PR:-''}
+
+
 export SRIOV_CNI_REPO=${SRIOV_CNI_REPO:-https://github.com/intel/sriov-cni}
 export SRIOV_CNI_BRANCH=${SRIOV_CNI_BRANCH:-master}
 export SRIOV_CNI_PR=${SRIOV_CNI_PR:-''}
@@ -114,6 +119,44 @@ EOF
     return $?
 }
 
+function load_rdma_modules {
+    status=0
+    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
+        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
+    fi
+    echo 0 > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
+    sleep 5
+
+    if [[ -n "$(lsmod | grep rdma_cm)" ]]; then
+        modprobe -r rdma_cm
+        if [ "$?" != "0" ]; then
+            echo "Warning: Failed to remove rdma_cm module"
+        fi
+        sleep 2
+    fi
+    modprobe rdma_cm
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to load rdma_cm module"
+        return $status
+    fi
+
+    if [[ -n "$(lsmod | grep rdma_ucm)" ]]; then
+        modprobe -r rdma_ucm
+        if [ "$?" != "0" ]; then
+            echo "Warning: faild to remove the rdma_ucm module"
+        fi
+        sleep 2
+    fi
+    modprobe rdma_ucm
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to load rdma_ucm module"
+        return $status
+    fi
+
+    return $status
+}
 
 function download_and_build {
     status=0
@@ -139,6 +182,64 @@ function download_and_build {
     git log -p -1 > $ARTIFACTS/multus-cni-git.txt
     cd -
 
+    echo "Download $RDMA_CNI_REPO"
+    rm -rf $WORKSPACE/rdma-cni
+    git clone $RDMA_CNI_REPO $WORKSPACE/rdma-cni
+    pushd $WORKSPACE/rdma-cni
+    # Check if part of Pull Request and
+    if test ${RDMA_CNI_PR}; then
+        git fetch --tags --progress $RDMA_CNI_REPO +refs/pull/*:refs/remotes/origin/pr/*
+        git pull origin pull/${RDMA_CNI_PR}/head
+    elif test $RDMA_CNI_BRANCH; then
+        git checkout $RDMA_CNI_BRANCH
+    fi
+
+    cat > deployment/rdma-crd.yaml <<EOF
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: sriov-rdma-net
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: mellanox.com/sriov_rdma
+spec:
+  config: '{
+             "cniVersion": "0.3.1",
+             "name": "sriov-rdma-net",
+             "plugins": [{
+                          "type": "sriov",
+                          "link_state": "enable",
+                          "ipam": {
+                            "type": "host-local",
+                            "subnet": "10.56.217.0/24",
+                            "routes": [{
+                              "dst": "0.0.0.0/0"
+                            }],
+                            "gateway": "10.56.217.1"
+                          }
+                        }, {
+                          "type": "rdma"
+                        }]
+           }'
+EOF
+
+    git log -p -1 > $ARTIFACTS/rdma-cni-git.txt
+    make
+    let status=status+$?
+   
+    if [ "$status" != 0 ]; then
+        echo "Failed to build ${RDMA_CNI_REPO} ${RDMA_CNI_BRANCH}"
+        return $status
+    fi
+
+    make image
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to create rdma cni images."
+        return $status
+    fi
+    \cp build/* $CNI_BIN_DIR/
+    popd
+
     echo "Download $SRIOV_CNI_REPO"
     rm -rf $WORKSPACE/sriov-cni
     git clone ${SRIOV_CNI_REPO} $WORKSPACE/sriov-cni
@@ -152,6 +253,10 @@ function download_and_build {
     git log -p -1 > $ARTIFACTS/sriov-cni-git.txt
     make build
     let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build ${SRIOV_CNI_REPO} ${SRIOV_CNI_BRANCH}"
+        return $status
+    fi
     make image
     let status=status+$?
     if [ "$status" != 0 ]; then
@@ -204,23 +309,28 @@ function download_and_build {
 
     \cp build/* $CNI_BIN_DIR/
     popd
-    mkdir -p /etc/pcidp/
-    cat > /etc/pcidp/config.json <<EOF
-{
-    "resourceList": [{
-        "resourceName": "sriov",
-        "selectors": {
-                "vendors": ["15b3"],
-                "devices": ["1018"],
-                "drivers": ["mlx5_core"]
-            }
+    cat > $ARTIFACTS/configMap.yaml <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sriovdp-config
+  namespace: kube-system
+data:
+  config.json: |
+    {
+      "resourceList": [{
+          "resourcePrefix": "mellanox.com",
+          "resourceName": "sriov_rdma",
+          "isRdma": true,
+          "selectors": {
+                  "vendors": ["15b3"],
+                  "devices": ["1018"],
+                  "drivers": ["mlx5_core"]
+              }
+      }
+      ]
     }
-    ]
-}
 EOF
-    cp $WORKSPACE/sriov-network-device-plugin/deployments/configMap.yaml $ARTIFACTS/
-    sed -i 's/mlnx_sriov_rdma/sriov/g' $ARTIFACTS/configMap.yaml
-    sed -i 's/mlx5_ib/mlx5_core/g' $ARTIFACTS/configMap.yaml
 
     echo "Download and install kubectl"
     rm -f ./kubectl /usr/local/bin/kubectl
@@ -268,8 +378,14 @@ function create_vfs {
     if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
         export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
     fi
-    echo 0 > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
     echo $VFS_NUM > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
+    let last_index=$VFS_NUM-1
+    for i in `seq 0 $last_index`; do
+        ip link set $SRIOV_INTERFACE vf $i mac 00:22:00:11:22:$(printf '%02x' $i)
+        pci=`readlink /sys/class/net/$SRIOV_INTERFACE/device/virtfn$i | sed 's/..\///'`
+	echo "$pci" > /sys/bus/pci/drivers/mlx5_core/unbind
+	echo "$pci" > /sys/bus/pci/drivers/mlx5_core/bind
+    done 
 }
 
 
@@ -298,7 +414,14 @@ function run_k8s {
 
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
+load_rdma_modules
+if [ $? -ne 0 ]; then
+    echo "Failed to load rdma modules"
+    exit 1
+fi
+
 create_vfs
+
 download_and_build
 if [ $? -ne 0 ]; then
     echo "Failed to download and build components"
@@ -317,13 +440,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml
 
-sed -i 's/intel_sriov_netdevice/sriov/g' $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml
-kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
 kubectl create -f $ARTIFACTS/configMap.yaml
+kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
 
-cp $WORKSPACE/sriov-network-device-plugin/deployments/sriov-crd.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
+kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-cni-daemonset.yaml
+
+cp $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
