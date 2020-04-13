@@ -1,5 +1,5 @@
 # Kubernetes Tests
-CI for deploying Kubernetes with Multus, SRIOV CNI, and Device Plugin.
+CI for deploying Kubernetes with Multus, SRIOV CNI, RDMA CNI and Device Plugin.
 
 ### Download and install all the components
 ```sh
@@ -49,6 +49,9 @@ $ export TIMEOUT=100
 | SRIOV_NETWORK_DEVICE_PLUGIN_REPO | https://github.com/intel/sriov-network-device-plugin | SRIOV-NETWORK-DEVICE-PLUGIN repo |
 | SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH | master | SRIOV-NETWORK-DEVICE-PLUGINbranch
 | SRIOV_NETWORK_DEVICE_PLUGIN_PR | '' | SRIOV-NETWORK-DEVICE-PLUGIN Pull Request |
+| RDMA_CNI_REPO | https://github.com/Mellanox/rdma-cni | RDMA repo |
+| RDMA_CNI_BRANCH | master | RDMA repo branch |
+| RDMA_CNI_PR | '' | RDMA Pull Request. ex RDMA_CNI_PR=345 will checkout https://github.com/Mellanox/rdma-cni/pull/345 |
 | GOPATH | $WORKSPACE | |
 | PATH | /usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH |
 | CNI_BIN_DIR | /opt/cni/bin/ | |

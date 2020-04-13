@@ -3,6 +3,11 @@
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
+mkdir -p $WORKSPACE
+mkdir -p $LOGDIR
+mkdir -p $ARTIFACTS
+
+
 for ds in $(kubectl -n kube-system get ds |grep kube|awk '{print $1}'); do
     kubectl -n kube-system delete ds $ds
 done
