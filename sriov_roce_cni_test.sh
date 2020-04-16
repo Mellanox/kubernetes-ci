@@ -95,7 +95,8 @@ function test_pods {
         return $status
     fi
 
-    screen -S rping_server -d -m bash -x -c "kubectl exec -it $POD_NAME_1 -- rping -svd"
+    screen -S rping_server -d -m bash -x -c "kubectl exec $POD_NAME_1 -- rping -svd"
+    sleep 10
     kubectl exec -it $POD_NAME_2 -- sh -c "rping -cvd -a $ip_1 -C 1 > /dev/null 2>&1"
     let status=status+$?
 
