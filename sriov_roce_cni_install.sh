@@ -321,11 +321,11 @@ data:
       "resourceList": [{
           "resourcePrefix": "mellanox.com",
           "resourceName": "sriov_rdma",
-          "isRdma": true,
           "selectors": {
                   "vendors": ["15b3"],
                   "devices": ["1018"],
-                  "drivers": ["mlx5_core"]
+                  "drivers": ["mlx5_core"],
+                  "isRdma": true
               }
       }
       ]
