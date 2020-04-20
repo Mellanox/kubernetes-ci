@@ -280,6 +280,10 @@ EOF
     return $?
 }
 
+
+[ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
+[ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
+
 network_plugins_install
 let status=status+$?
 if [ "$status" != 0 ]; then
