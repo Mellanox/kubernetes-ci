@@ -46,53 +46,12 @@ if [[ $(uname -a) == *"ppc"* ]]; then
    export ARCH="ppc"
 fi
 
-function load_rdma_modules {
-    status=0
-    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
-        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
-    fi
-    echo 0 > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
-    sleep 5
-
-    if [[ -n "$(lsmod | grep rdma_cm)" ]]; then
-        modprobe -r rdma_cm
-        if [ "$?" != "0" ]; then
-            echo "Warning: Failed to remove rdma_cm module"
-        fi
-        sleep 2
-    fi
-    modprobe rdma_cm
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to load rdma_cm module"
-        return $status
-    fi
-
-    if [[ -n "$(lsmod | grep rdma_ucm)" ]]; then
-        modprobe -r rdma_ucm
-        if [ "$?" != "0" ]; then
-            echo "Warning: faild to remove the rdma_ucm module"
-        fi
-        sleep 2
-    fi
-    modprobe rdma_ucm
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to load rdma_ucm module"
-        return $status
-    fi
-
-    return $status
-}
-
 function download_and_build {
     status=0
     if [ "$RECLONE" != true ] ; then
         return $status
     fi
 
-    [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
-    [ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
     echo "Download $RDMA_CNI_REPO"
@@ -244,32 +203,34 @@ function create_vfs {
 }
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
-pushd $WORKSPACE
 
-load_rdma_modules
-if [ $? -ne 0 ]; then
-    echo "Failed to load rdma modules"
+if [[ -f ./environment_common.sh ]]; then
+    sudo ./environment_common.sh -m "exclusive"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        exit $status
+    fi
+else
+    echo "no environment_common.sh file found in this directory make sure you run the script from the repo dir!"
     exit 1
 fi
 
 create_vfs
+
+if [[ -f ./k8s_common.sh ]]; then
+    sudo ./k8s_common.sh
+else
+    echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!"
+    exit 1
+fi
+
+pushd $WORKSPACE
 
 download_and_build
 if [ $? -ne 0 ]; then
     echo "Failed to download and build components"
     exit 1
 fi
-popd
-
-if [[ -f ./k8s_common.sh ]]; then
-	sudo ./k8s_common.sh
-else
-	echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!!!"
-        popd
-	exit 1
-fi
-
-pushd $WORKSPACE
 
 kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml
 
