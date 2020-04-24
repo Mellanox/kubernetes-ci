@@ -41,56 +41,6 @@ mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
 
-function load_rdma_modules {
-    status=0
-    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
-        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
-    fi
-    echo 0 > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
-    sleep 5
-
-    if [[ -n "$(lsmod | grep rdma_ucm)" ]]; then
-        modprobe -r rdma_ucm
-        if [ "$?" != "0" ]; then
-            echo "Warning: faild to remove the rdma_ucm module"
-        fi
-        sleep 2
-    fi
-
-    if [[ -n "$(lsmod | grep rdma_cm)" ]]; then
-        modprobe -r rdma_cm
-        if [ "$?" != "0" ]; then
-            echo "Warning: Failed to remove rdma_cm module"
-        fi
-        sleep 2
-    fi
-
-    modprobe rdma_cm
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to load rdma_cm module"
-        return $status
-    fi
-
-    modprobe rdma_ucm
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to load rdma_ucm module"
-        return $status
-    fi
-
-    if [[ -z "$(rdma system | grep exclusive)" ]]; then
-        rdma system set netns exclusive
-        let status=status+$?
-        if [ "$status" != 0 ]; then
-            echo "Failed to set rdma to exclusive mode"
-            return $status
-        fi
-    fi
-
-    return $status
-}
-
 function download_and_build {
     status=0
     if [ "$RECLONE" != true ] ; then
@@ -232,31 +182,43 @@ function create_vfs {
 
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
-pushd $WORKSPACE
-load_rdma_modules
-if [ $? -ne 0 ]; then
-    echo "Failed to load rdma modules"
+if [[ -f ./environment_common.sh ]]; then
+    sudo ./environment_common.sh -m "exclusive"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        exit $status
+    fi
+else
+    echo "no environment_common.sh file found in this directory make sure you run the script from the repo dir!"
     exit 1
 fi
 
 create_vfs
 
-download_and_build
-if [ $? -ne 0 ]; then
-    echo "Failed to download and build components"
-    exit 1
+let status=status+$?
+if [ "$status" != 0 ]; then
+    echo "Failed to create VFs!"
+    exit $status
 fi
-popd
 
 if [[ -f ./k8s_common.sh ]]; then
-        sudo ./k8s_common.sh
+    sudo ./k8s_common.sh
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        exit $status
+    fi
 else
-        echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!!!"
-        popd
-        exit 1
+    echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!!!"
+    exit 1
 fi
 
 pushd $WORKSPACE
+
+download_and_build
+let status=status+$?
+if [ "$status" != 0 ]; then
+    exit $status
+fi
 
 kubectl label node $(kubectl get nodes -o name | cut -d'/' -f 2) node-role.kubernetes.io/master=
 
@@ -274,6 +236,6 @@ echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
-echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./sriov_cni_test.sh"
+echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./sriov_ib_cni_test.sh"
 popd
 exit $status

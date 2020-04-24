@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 

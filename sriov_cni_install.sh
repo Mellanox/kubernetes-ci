@@ -219,6 +219,10 @@ create_vfs
 
 if [[ -f ./k8s_common.sh ]]; then
     sudo ./k8s_common.sh
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        exit $status
+    fi
 else
     echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!"
     exit 1
