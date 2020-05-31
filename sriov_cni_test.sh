@@ -114,7 +114,7 @@ function exit_code {
     rc="$1"
     echo "All logs $LOGDIR"
     echo "All confs $ARTIFACTS"
-    echo "To stop K8S run # WORKSPACE=${WORKSPACE} ./sriov_roce_cni_stop.sh"
+    echo "To stop K8S run # WORKSPACE=${WORKSPACE} ./cni_stop.sh"
     exit $status
 }
 
