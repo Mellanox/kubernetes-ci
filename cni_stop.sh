@@ -37,11 +37,18 @@ function delete_all_docker_images {
     docker rmi $(docker images -q)
 }
 
+function delete_chache_files {
+    #delete network cache
+    rm -rf /var/lib/cni/networks
+}
+
 stop_system_daemonset
 
 stop_k8s_screen
 
 asure_all_stoped
+
+delete_chache_files
 
 delete_all_docker_container
 
