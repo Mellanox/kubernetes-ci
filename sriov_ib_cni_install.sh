@@ -72,7 +72,7 @@ spec:
   config: '{
   "cniVersion": "0.3.1",
   "name": "sriov-network",
-  "plugins":[{"type": "ib-sriov-cni",
+  "plugins":[{"type": "ib-sriov",
   "pkey": "0x223F",
   "link_state": "enable",
   "rdmaIsolation": true,
