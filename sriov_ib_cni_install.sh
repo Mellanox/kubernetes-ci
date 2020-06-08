@@ -179,8 +179,20 @@ function create_vfs {
     echo $VFS_NUM > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
 }
 
+function reload_modules {
+    systemctl stop opensm
+    /etc/init.d/openibd restart
+    sleep 5
+    systemctl start opensm
+    sleep 2
+    rdma system set netns exclusive
+    sleep 4
+}
+
 
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
+
+reload_modules
 
 if [[ -f ./environment_common.sh ]]; then
     sudo ./environment_common.sh -m "exclusive"

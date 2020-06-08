@@ -5,9 +5,19 @@
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
+export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+
 mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
+
+function delete_pods {
+    kubectl delete pods --all
+}
+
+function stop_system_deployments {
+    kubectl delete deployment -n kube-system --all
+}
 
 function stop_system_daemonset {
     for ds in $(kubectl -n kube-system get ds |grep kube|awk '{print $1}'); do
@@ -41,6 +51,10 @@ function delete_chache_files {
     #delete network cache
     rm -rf /var/lib/cni/networks
 }
+
+delete_pods
+
+stop_system_deployments
 
 stop_system_daemonset
 
