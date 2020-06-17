@@ -28,8 +28,11 @@ export ALLOW_PRIVILEGED=${ALLOW_PRIVILEGED:-true}
 export NET_PLUGIN=${NET_PLUGIN:-cni}
 
 export KUBE_ENABLE_CLUSTER_DNS=${KUBE_ENABLE_CLUSTER_DNS:-false}
-export API_HOST=$(hostname).$(hostname -y)
+export API_HOST=$(hostname)
+export HOSTNAME_OVERRIDE=$(hostname).$(hostname -y)
+export EXTERNAL_HOSTNAME=$(hostname).$(hostname -y)
 export API_HOST_IP=$(hostname -I | awk '{print $1}')
+export KUBELET_HOST=$(hostname -I | awk '{print $1}')
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 
 # generate random network
