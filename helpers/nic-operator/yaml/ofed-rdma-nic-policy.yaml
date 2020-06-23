@@ -1,0 +1,35 @@
+# Copyright 2020 NVIDIA
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: mellanox.com/v1alpha1
+kind: NicClusterPolicy
+metadata:
+  name: ofed-rdma-nicclusterpolicy
+  namespace: mlnx-network-operator
+spec:
+  ofedDriver:
+    image: ofed-driver
+    repository: mellanox
+    version: 5.0-2.1.8.0
+  devicePlugin:
+    image: k8s-rdma-shared-dev-plugin
+    repository: mellanox
+    version: latest
+    config: |
+      {
+        "configList": [{
+        "resourceName": "hca_shared_devices_a",
+        "rdmaHcaMax": 1000,
+        "devices": ["enp3s0f0"]
+      }]
+      }

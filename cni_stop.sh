@@ -113,7 +113,25 @@ function unload_module {
 
 let status=0
 
+function load_inbox_drivers {
+    modprobe mlx5_core
+    modprobe ib_core
+}
+
+function delete_nic_operator_namespace {
+    if [[ !  -f "$WORKSPACE/mellanox-network-operator/deploy/operator-ns.yaml" ]];then
+        return 0
+    fi
+    nic_operator_namespace_file=$WORKSPACE/mellanox-network-operator/deploy/operator-ns.yaml
+    operator_namespace=$(grep -E '^[ ]+name:' $nic_operator_namespace_file | head -n 1 | cut -d: -f2 | tr -d ' ')
+    kubectl delete namespace $operator_namespace
+    sleep 20
+}
+
+
 delete_pods
+
+delete_nic_operator_namespace
 
 stop_system_deployments
 
@@ -130,6 +148,8 @@ delete_all_docker_container
 delete_all_docker_images
 
 clean_tmp_workspaces
+
+load_inbox_drivers
 
 ps -ef |egrep "kube|local-up-cluster|etcd"
 
