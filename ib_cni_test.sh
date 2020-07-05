@@ -17,6 +17,8 @@ export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
 pushd $WORKSPACE
 
+test_pod_image='mellanox/rping-test'
+
 function pod_create_server {
     POD_NAME=$1
     cd $ARTIFACTS
@@ -43,6 +45,7 @@ EOF
 
     mv $ARTIFACTS/test-hca-pod.yaml $ARTIFACTS/${POD_NAME}.yaml
     sed -i "s/name: mofed-test-pod/name: ${POD_NAME}/g" $ARTIFACTS/${POD_NAME}.yaml
+    sed -i "s;image: .*;image: $test_pod_image;g" $ARTIFACTS/${POD_NAME}.yaml
     return $?
 }
 
@@ -67,6 +70,7 @@ EOF
 
     mv $ARTIFACTS/test-hca-pod.yaml $ARTIFACTS/${POD_NAME}.yaml
     sed -i "s/name: mofed-test-pod/name: ${POD_NAME}/g" $ARTIFACTS/${POD_NAME}.yaml
+    sed -i "s;image: .*;image: $test_pod_image;g" $ARTIFACTS/${POD_NAME}.yaml
     return $?
 }
 
@@ -143,14 +147,14 @@ status=0
 echo "Creating pod mofed-test-pod2 for ib_write_bw server"
 pod_create_server mofed-test-pod1
 let status=status+$?
-if [ $? -ne 0 ]; then
+if [ $status -ne 0 ]; then
     echo "Failed to get mofed-test-pod1 yaml!"
     exit "$status"
 fi
 
 pod_start mofed-test-pod1
 let status=status+$?
-if [ $? -ne 0 ]; then
+if [ $status -ne 0 ]; then
     echo "Failed to run mofed-test-pod1!"
     exit "$status"
 fi
@@ -159,14 +163,14 @@ fi
 echo "Creating pod mofed-test-pod2"
 pod_create_client mofed-test-pod2
 let status=status+$?
-if [ $? -ne 0 ]; then
+if [ $status -ne 0 ]; then
     echo "Failed to get mofed-test-pod2 yaml!"
     exit "$status"
 fi
 
 pod_start mofed-test-pod2
 let status=status+$?
-if [ $? -ne 0 ]; then
+if [ $status -ne 0 ]; then
     echo "Failed to run mofed-test-pod2!"
     exit "$status"
 fi
@@ -174,7 +178,7 @@ fi
 
 test_pods mofed-test-pod1 mofed-test-pod2
 let status=status+$?
-if [ $? -ne 0 ]; then
+if [ $status -ne 0 ]; then
     echo "Failed to test pods!"
     exit "$status"
 fi
