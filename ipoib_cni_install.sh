@@ -85,6 +85,6 @@ echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
 echo "# export KUBECONFIG=${KUBECONFIG}"
-echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./ib_cni_test.sh"
+echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./ipoib_cni_test.sh"
 popd
 exit $status
