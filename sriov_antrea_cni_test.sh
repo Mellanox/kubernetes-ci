@@ -87,7 +87,7 @@ function test_pods {
     /usr/local/bin/kubectl exec -i ${POD_NAME_2} -- ifconfig eth0
     echo "${POD_NAME_2} has ip ${ip_2}"
 
-    /usr/local/bin/kubectl exec ${POD_NAME_2} -- bash -c "ping $ip_1 -c 1 >/dev/null 2>&1"
+    /usr/local/bin/kubectl exec ${POD_NAME_2} -- bash -c "ping $ip_1 -c 10 >/dev/null 2>&1"
     let status=status+$?
 
     if [ "$status" != 0 ]; then
@@ -110,7 +110,38 @@ function test_pods {
         return 1
     fi
 
+    if [[ -z "$(kubectl exec -it test-pod-1 -- ls -l /sys/class/net/eth0/device/driver | grep mlx)" ]]; then
+        echo "Error: pod test-pod-1 driver is not mellanox driver!"
+	return 1
+    fi
+
+    if [[ -z "$(kubectl exec -it test-pod-2 -- ls -l /sys/class/net/eth0/device/driver | grep mlx)" ]]; then
+         echo "Error: pod test-pod-2 driver is not mellanox driver!"
+         return 1
+    fi
+
+
     echo "Success!! The pods have the vfs."
+    echo ""
+    echo "Checking if hw-offload is enabled inside the ovs container."
+    
+    agent_pod_name=$(kubectl get pods -A -o name | grep antrea-agent | cut -d/ -f2)
+    if [[ -z "$agent_pod_name" ]];then
+        echo "Couldn't find the antrea agent pod!"
+	return 1
+    fi
+    ovs_options=$(kubectl -n kube-system -c antrea-ovs exec -t $agent_pod_name -- ovs-vsctl get Open_vSwitch . other_config)
+    if [[ "$?" != "0" ]];then
+        echo "Cloud not retriev ovs configuration!"
+	return 1
+    fi
+    echo "ovs options are: $ovs_options"
+    if [[ "$ovs_options" =~ "hw-offload=\"true\"" ]];then
+        echo "hardware offload is enabled."
+    else
+        echo "hardware offload is not enabled."
+	return 1
+    fi
 
     return $status
  }

@@ -104,8 +104,10 @@ EOF
         git checkout ${ANTREA_CNI_BRANCH}
     fi
     make build
+    if [[ -z "$(grep hw-offload $WORKSPACE/antrea/build/yamls/antrea.yml)" ]];then
+        sed -i '/start_ovs/a\        - --hw-offload' $WORKSPACE/antrea/build/yamls/antrea.yml
+    fi
     git log -p -1 > $ARTIFACTS/antrea-git.txt
-    #sed -i 's/image\:.*/image: mmdh\/antrea-sriov/' $ARTIFACTS/antrea.yml
     
     cat > $ARTIFACTS/antrea-crd.yaml <<EOF
 apiVersion: "k8s.cni.cncf.io/v1"
