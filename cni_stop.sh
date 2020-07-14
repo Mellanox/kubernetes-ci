@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 #TODO move to a common script
 
@@ -52,6 +52,26 @@ function delete_chache_files {
     rm -rf /var/lib/cni/networks
 }
 
+function clean_tmp_workspaces {
+    number_of_all_logs=$(ls -tr /tmp/ | grep k8s | wc -l)
+    number_of_logs_to_keep=10
+    let number_of_logs_to_clean="$number_of_all_logs"-"$number_of_logs_to_keep"
+    echo "number of all logs $number_of_all_logs"
+    echo "number of logs to clean $number_of_logs_to_clean"
+    
+    if [ "$number_of_logs_to_clean" -le 0 ]; then
+            echo "no logs to clean"
+    else
+            logs_to_clean=$(ls -tr /tmp/ | grep k8s | head -n "$number_of_logs_to_clean")
+            echo "Cleaning $number_of_logs_to_clean logs, it is these dirs:"
+            echo "$logs_to_clean"
+            for log in $logs_to_clean; do
+                    echo "Removing /tmp/$log dir"
+                    rm -rf /tmp/"$log"
+            done
+    fi
+}
+
 delete_pods
 
 stop_system_deployments
@@ -67,6 +87,8 @@ delete_chache_files
 delete_all_docker_container
 
 delete_all_docker_images
+
+clean_tmp_workspaces
 
 ps -ef |egrep "kube|local-up-cluster|etcd"
 
