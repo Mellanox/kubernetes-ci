@@ -76,6 +76,7 @@ spec:
   "pkey": "0x223F",
   "link_state": "enable",
   "rdmaIsolation": true,
+  "ibKubernetesEnabled" : true, 
   "ipam": {
                 "type": "host-local",
                 "subnet": "10.56.217.0/24",
