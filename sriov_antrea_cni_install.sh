@@ -158,31 +158,27 @@ function create_vfs {
 }
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
-
-if [[ -f ./environment_common.sh ]]; then
-    sudo ./environment_common.sh -m "exclusive"
+if [[ -f ./common_functions.sh ]]; then
+    source ./common_functions.sh
     let status=status+$?
     if [ "$status" != 0 ]; then
+        echo "Failed to source common_functions.sh"
         exit $status
     fi
 else
-    echo "no environment_common.sh file found in this directory make sure you run the script from the repo dir!"
+    echo "no common_functions.sh file found in this directory make sure you run the script from the repo dir!"
     exit 1
 fi
 
 create_vfs
 
-if [[ -f ./k8s_common.sh ]]; then
-    sudo WORKSPACE=$WORKSPACE ./k8s_common.sh
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        exit $status
-    fi
-else
-    echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!"
+pushd $WORKSPACE
+
+deploy_k8s_with_multus
+if [ $? -ne 0 ]; then
+    echo "Failed to deploy k8s"
     exit 1
 fi
-
 pushd $WORKSPACE
 
 download_and_build

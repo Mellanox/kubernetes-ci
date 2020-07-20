@@ -1,5 +1,6 @@
 #!/bin/bash -x
 
+export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
@@ -63,29 +64,38 @@ function download_and_build {
     popd
 }
 
-if [[ -f ./environment_common.sh ]]; then
-    sudo ./environment_common.sh -m "shared"
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        exit $status
-    fi
-else
-    echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!!!"
-    exit 1
-fi
 
-if [[ -f ./k8s_common.sh ]]; then
-    sudo ./k8s_common.sh
+if [[ -f ./common_functions.sh ]]; then
+    source ./common_functions.sh
     let status=status+$?
     if [ "$status" != 0 ]; then
+        echo "Failed to source common_functions.sh"
         exit $status
     fi
 else
-    echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!!!"
+    echo "no common_functions.sh file found in this directory make sure you run the script from the repo dir!"
     exit 1
 fi
 
 pushd $WORKSPACE
+
+load_rdma_modules
+let status=status+$?
+if [ "$status" != 0 ]; then
+    exit $status
+fi
+
+enable_rdma_mode "shared"
+let status=status+$?
+if [ "$status" != 0 ]; then
+    exit $status
+fi
+
+deploy_k8s_with_multus
+if [ $? -ne 0 ]; then
+    echo "Failed to deploy k8s screen"
+    exit 1
+fi
 
 download_and_build
 

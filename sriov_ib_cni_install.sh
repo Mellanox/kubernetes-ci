@@ -189,23 +189,9 @@ function reload_modules {
     sleep 4
 }
 
-
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
-reload_modules
-
-if [[ -f ./environment_common.sh ]]; then
-    sudo ./environment_common.sh -m "exclusive"
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        exit $status
-    fi
-else
-    echo "no environment_common.sh file found in this directory make sure you run the script from the repo dir!"
-    exit 1
-fi
-
-create_vfs
+#reload_modules
 
 let status=status+$?
 if [ "$status" != 0 ]; then
@@ -213,23 +199,45 @@ if [ "$status" != 0 ]; then
     exit $status
 fi
 
-if [[ -f ./k8s_common.sh ]]; then
-    sudo ./k8s_common.sh
+
+if [[ -f ./common_functions.sh ]]; then
+    source ./common_functions.sh
     let status=status+$?
     if [ "$status" != 0 ]; then
+        echo "Failed to source common_functions.sh"
         exit $status
     fi
 else
-    echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!!!"
+    echo "no common_functions.sh file found in this directory make sure you run the script from the repo dir!"
     exit 1
 fi
 
 pushd $WORKSPACE
 
-download_and_build
+load_rdma_modules
 let status=status+$?
 if [ "$status" != 0 ]; then
     exit $status
+fi
+
+enable_rdma_mode "exclusive"
+let status=status+$?
+if [ "$status" != 0 ]; then
+    exit $status
+fi
+
+create_vfs
+
+deploy_k8s_with_multus
+if [ $? -ne 0 ]; then
+    echo "Failed to deploy k8s screen"
+    exit 1
+fi
+
+download_and_build
+if [ $? -ne 0 ]; then
+    echo "Failed to download and build components"
+    exit 1
 fi
 
 kubectl label node $(kubectl get nodes -o name | cut -d'/' -f 2) node-role.kubernetes.io/master=

@@ -64,20 +64,23 @@ fi
 k8s_build(){
     status=0
     echo "Download K8S"
-
+    rm -f /usr/local/bin/kubectl
+    if [ ${KUBERNETES_VERSION} == 'latest_stable' ]; then
+        export KUBERNETES_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+    fi
     rm -rf $GOPATH/src/k8s.io/kubernetes
 
     go get -d k8s.io/kubernetes
 
     pushd $GOPATH/src/k8s.io/kubernetes
-    #git checkout $KUBERNETES_BRANCH
+    git checkout ${KUBERNETES_VERSION}
     git log -p -1 > $ARTIFACTS/kubernetes.txt
 
     make clean
 
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Failed to build K8S $KUBERNETES_BRANCH"
+        echo "Failed to build K8S ${KUBERNETES_VERSION}: Failed to clean k8s dir."
         return $status
     fi
 
@@ -85,7 +88,16 @@ k8s_build(){
 
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Failed to build K8S $KUBERNETES_BRANCH"
+        echo "Failed to build K8S ${KUBERNETES_VERSION}: Failed to make."
+        return $status
+    fi
+
+    cp _output/bin/kubectl /usr/local/bin/kubectl
+
+    kubectl version --client
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to run kubectl please fix the error above!"
         return $status
     fi
 
@@ -101,46 +113,11 @@ k8s_build(){
 
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo 'Failed to clone get github.com/cloudflare/cfssl/cmd/...'
+        echo 'Failed to clone github.com/cloudflare/cfssl/cmd/...'
         return $status
     fi
 
     popd
-}
-
-kubectl_download(){
-    echo "Download and install kubectl"
-    rm -f ./kubectl /usr/local/bin/kubectl
-    if [ ${KUBERNETES_VERSION} == 'latest_stable' ]; then
-        export KUBERNETES_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/${ARCH}64/kubectl
-        let status=status+$?
-        if [ "$status" != 0 ]; then
-            echo "Failed to get the latest release of kubectl"
-            return $status
-        fi
-        
-        mv ./kubectl /usr/local/bin/kubectl
-    elif [ ${KUBERNETES_VERSION} == 'master' ]; then
-        [ ! -f $GOPATH/src/k8s.io/kubernetes/_output/local/go/bin/kubectl ] && k8s_build
-        mv $GOPATH/src/k8s.io/kubernetes/_output/local/go/bin/kubectl /usr/local/bin/kubectl
-    else
-        curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/${ARCH}64/kubectl
-        let status=status+$?
-        if [ "$status" != 0 ]; then
-            echo "Failed to get kubectl version ${KUBERNETES_VERSION}"
-            return $status
-        fi
-        mv ./kubectl /usr/local/bin/kubectl
-    fi
-
-    chmod +x /usr/local/bin/kubectl
-    kubectl version --client
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to run kubectl please fix the error above!"
-        return $status
-    fi
 }
 
 k8s_run(){
@@ -222,11 +199,21 @@ multus_install(){
         fi
     elif test $MULTUS_CNI_BRANCH; then
         git checkout $MULTUS_CNI_BRANCH
+        let status=status+$?
         if [ "$status" != 0 ]; then
             echo "Failed to switch to multus branch ${MULTUS_CNI_BRANCH}!!"
             return $status
         fi
     fi
+
+    ./build
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build multus!!"
+        return $status
+    fi
+    cp bin/multus /opt/cni/bin/
+
     git log -p -1 > $ARTIFACTS/multus-cni-git.txt
     popd
 }
@@ -283,55 +270,97 @@ EOF
     return $?
 }
 
+function load_rdma_modules {
+    status=0
+    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
+        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
+    fi
+    echo 0 > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
+    sleep 5
 
-[ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
-[ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
+    if [[ -n "$(lsmod | grep rdma_ucm)" ]]; then
+        modprobe -r rdma_ucm
+        if [ "$?" != "0" ]; then
+            echo "Warning: faild to remove the rdma_ucm module"
+        fi
+        sleep 2
+    fi
 
-network_plugins_install
-let status=status+$?
-if [ "$status" != 0 ]; then
-    echo "Failed to install container networking plugins!!"
-    popd
-    exit $status
-fi
+    if [[ -n "$(lsmod | grep rdma_cm)" ]]; then
+        modprobe -r rdma_cm
+        if [ "$?" != "0" ]; then
+            echo "Warning: Failed to remove rdma_cm module"
+        fi
+        sleep 2
+    fi
+    modprobe rdma_cm
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to load rdma_cm module"
+        return $status
+    fi
+    modprobe rdma_ucm
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to load rdma_ucm module"
+        return $status
+    fi
 
-multus_install
-let status=status+$?
-if [ "$status" != 0 ]; then
-    echo "Failed to clone multus!!"
-    popd
-    exit $status
-fi
+    return $status
+}
 
-k8s_build
-let status=status+$?
-if [ "$status" != 0 ]; then
-    echo "Failed to build Kubernetes!!"
-    popd
-    exit $status
-fi
+function enable_rdma_mode {
+    local_mode=$1
+    if [[ -z "$(rdma system | grep $local_mode)" ]]; then
+        rdma system set netns "$local_mode"
+        let status=status+$?
+        if [ "$status" != 0 ]; then
+            echo "Failed to set rdma to $local_mode mode"
+            return $status
+        fi
+    fi
+}
 
-kubectl_download
-let status=status+$?
-if [ "$status" != 0 ]; then
-    echo "Failed to install kubectl!!"
-    popd
-    exit $status
-fi
 
-k8s_run
-let status=status+$?
-if [ "$status" != 0 ]; then
-    echo "Failed to run Kubernetes!!"
-    popd
-    exit $status
-fi
+function deploy_k8s_with_multus {
 
-multus_configuration
-let status=status+$?
-if [ "$status" != 0 ]; then
-    echo "Failed to run multus!!"
-    popd
-    exit $status
-fi
-popd
+    network_plugins_install
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to install container networking plugins!!"
+        popd
+        return $status
+    fi
+
+    multus_install
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to clone multus!!"
+        popd
+        return $status
+    fi
+
+    k8s_build
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build Kubernetes!!"
+        popd
+        return $status
+    fi
+
+    k8s_run
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to run Kubernetes!!"
+        popd
+        return $status
+    fi
+
+    multus_configuration
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to run multus!!"
+        popd
+        return $status
+    fi
+}
