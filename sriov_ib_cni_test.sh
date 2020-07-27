@@ -113,6 +113,27 @@ function test_pods {
     return $status
  }
 
+function test_guids_reseted {
+    echo "Testing GUID reseted after pod deletion."
+    kubectl delete pods --all
+    sleep 10
+    vfs_guids=$(ip link show  ib0 | grep vf | grep -o 'NODE_GUID [0-9a-z:]*' | cut -d' ' -f 2)
+    echo "Vfs guids are:"
+    echo "$vfs_guids"
+    for guid in $vfs_guids; do
+        echo "guid is: $guid"
+        if [[ "$guid" != '00:00:00:00:00:00:00:00' ]];then
+            if [[ "$guid" != 'ff:ff:ff:ff:ff:ff:ff:ff' ]]; then
+                echo "ERROR: A VF GUID was not reset after pod deletion and its value is $guid !"
+                return 1
+            fi
+        else
+            return 0
+        fi
+    done
+}
+
+
 function exit_code {
     rc="$1"
     echo "All logs $LOGDIR"
@@ -141,6 +162,10 @@ if [ "$status" != 0 ]; then
 fi
 
 test_pods 'test-pod-1' 'test-pod-2'
+
+let status=status+$?
+
+test_guids_reseted
 
 let status=status+$?
 
