@@ -72,6 +72,47 @@ function clean_tmp_workspaces {
     fi
 }
 
+function reset_vfs_guids {
+    let status=0
+
+    if [[ -z "$(lspci |grep Mellanox | grep MT27800|head -n1|grep -i infini)" ]];then
+        return 0
+    fi
+
+    unload_module mlx5_ib
+    let status=$status+$?
+
+    unload_module mlx5_core
+    let status=$status+$?
+
+    if [[ "$status" != "0" ]]; then
+        return "$status"
+    fi
+
+    modprobe mlx5_core
+    modprobe mlx5_ib
+    sleep 10
+
+    ifconfig ib0 up
+    sleep 5
+    ifconfig ib1 up
+    sleep 5
+    systemctl restart opensm
+
+    return 0
+}
+
+function unload_module {
+    local module=$1
+    modprobe -r $module
+    if [[ "$?" != "0" ]];then
+       echo "ERROR: Failed to unload $module module!"
+       return 1
+    fi
+}
+
+let status=0
+
 delete_pods
 
 stop_system_deployments
@@ -94,6 +135,12 @@ ps -ef |egrep "kube|local-up-cluster|etcd"
 
 [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
+reset_vfs_guids
+
+let status=$status+$?
+
 cp /tmp/kube*.log $LOGDIR
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
+exit $status
+
