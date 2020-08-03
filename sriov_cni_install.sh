@@ -24,6 +24,7 @@ export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$P
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
 export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
+
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 
 # generate random network
@@ -201,34 +202,45 @@ function create_vfs {
 	echo "$pci" > /sys/bus/pci/drivers/mlx5_core/bind
     done 
 }
+
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
+[ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
+[ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
 
-if [[ -f ./environment_common.sh ]]; then
-    sudo ./environment_common.sh -m "exclusive"
+if [[ -f ./common_functions.sh ]]; then
+    source ./common_functions.sh
     let status=status+$?
     if [ "$status" != 0 ]; then
+        echo "Failed to source common_functions.sh"
         exit $status
     fi
 else
-    echo "no environment_common.sh file found in this directory make sure you run the script from the repo dir!"
-    exit 1
-fi
-
-create_vfs
-
-if [[ -f ./k8s_common.sh ]]; then
-    sudo ./k8s_common.sh
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        exit $status
-    fi
-else
-    echo "no k8s_common.sh file found in this directory make sure you run the script from the repo dir!"
+    echo "no common_functions.sh file found in this directory make sure you run the script from the repo dir!"
     exit 1
 fi
 
 pushd $WORKSPACE
+
+load_rdma_modules
+let status=status+$?
+if [ "$status" != 0 ]; then
+    exit $status
+fi
+
+enable_rdma_mode "exclusive"
+let status=status+$?
+if [ "$status" != 0 ]; then
+    exit $status
+fi
+
+create_vfs
+
+deploy_k8s_with_multus
+if [ $? -ne 0 ]; then
+    echo "Failed to deploy k8s!"
+    exit 1
+fi
 
 download_and_build
 if [ $? -ne 0 ]; then
@@ -239,6 +251,7 @@ fi
 kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml
 
 kubectl create -f $ARTIFACTS/configMap.yaml
+
 kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
 
 kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-cni-daemonset.yaml
