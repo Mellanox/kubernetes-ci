@@ -9,7 +9,7 @@ export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export ANTREA_CNI_REPO=${ANTREA_CNI_REPO:-https://github.com/vmware-tanzu/antrea.git}
 export ANTREA_CNI_BRANCH=${ANTREA_CNI_BRANCH:-master}
-export ANTREA_CNI_PR=${ANTREA_CNI_PR:-'786'}
+export ANTREA_CNI_PR=${ANTREA_CNI_PR:-''}
 
 export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/intel/sriov-network-device-plugin}
 export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
@@ -99,7 +99,7 @@ EOF
     pushd $WORKSPACE/antrea
     if test ${ANTREA_CNI_PR}; then
         git fetch --tags --progress ${ANTREA_CNI_REPO} +refs/pull/*:refs/remotes/origin/pr/*
-        git checkout origin/pr/${ANTREA_CNI_PR}/head
+        git pull origin/pr/${ANTREA_CNI_PR}/head
     elif test ${ANTREA_CNI_BRANCH}; then
         git checkout ${ANTREA_CNI_BRANCH}
     fi
