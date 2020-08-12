@@ -15,9 +15,15 @@ export NETWORK=${NETWORK:-'192.168'}
 export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
+export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
+
 mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
 mkdir -p $ARTIFACTS
+
+starting_guids=""
+after_creation_guids=""
+after_deletion_guids=""
 
 pushd $WORKSPACE
 
@@ -75,7 +81,7 @@ EOF
     return 1
 }
 
-function test_pods {
+function test_pods_connectivity {
     local status=0
     POD_NAME_1=$1
     POD_NAME_2=$2
@@ -108,29 +114,39 @@ function test_pods {
 #        return $status
 #    fi
 
-    echo "all tests succeeded!!" 
-
     return $status
  }
 
-function test_guids_reseted {
-    echo "Testing GUID reseted after pod deletion."
+function delete_pods {
     kubectl delete pods --all
     sleep 10
-    vfs_guids=$(ip link show  ib0 | grep vf | grep -o 'NODE_GUID [0-9a-z:]*' | cut -d' ' -f 2)
-    echo "Vfs guids are:"
-    echo "$vfs_guids"
-    for guid in $vfs_guids; do
+}
+
+function print_vfs_guids {
+    local guids="$1"
+    local message="$2"
+
+    echo ""
+    echo "$message"
+    echo "$guids"
+}
+
+function test_guids_reseted {
+    local guids=$1
+    for guid in $guids; do
         echo "guid is: $guid"
         if [[ "$guid" != '00:00:00:00:00:00:00:00' ]];then
             if [[ "$guid" != 'ff:ff:ff:ff:ff:ff:ff:ff' ]]; then
                 echo "ERROR: A VF GUID was not reset after pod deletion and its value is $guid !"
                 return 1
             fi
-        else
-            return 0
         fi
     done
+}
+
+function get_vfs_guids {
+    interface="$1"
+    ip link show  "$interface" | grep vf | grep -o 'NODE_GUID [0-9a-z:]*' | cut -d' ' -f 2
 }
 
 
@@ -142,35 +158,86 @@ function exit_code {
     exit $status
 }
 
-status=0
-echo "Creating pod test-pod-1"
-pod_create 'test-pod-1'
+function test_pods {
+    status=0
+
+    starting_guids=$(get_vfs_guids $SRIOV_INTERFACE)
+    print_vfs_guids "$starting_guids" "VFs GUIDs before the test are:"
+
+    echo "Creating pod test-pod-1"
+    pod_create 'test-pod-1'
+    let status=status+$?
+    
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the first pod"
+        return $status
+    fi
+    
+    echo "Creating pod test-pod-2"
+    pod_create 'test-pod-2'
+    let status=status+$?
+    
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the second pod"
+        return $status
+    fi
+
+    after_creation_guids=$(get_vfs_guids $SRIOV_INTERFACE)
+    print_vfs_guids "$after_creation_guids" "Pods created successfully! VFs GUIDs after pods creation are:"
+    
+    test_pods_connectivity 'test-pod-1' 'test-pod-2'
+     
+    let status=status+$?
+
+    echo "Testing GUID reseted after pod deletion."
+
+    delete_pods
+
+    after_deletion_guids=$(get_vfs_guids $SRIOV_INTERFACE)
+    print_vfs_guids "$after_deletion_guids" "Pods deleted! Vfs GUIDs after deletion are:"
+
+    test_guids_reseted "$after_deletion_guids"
+
+    let status=status+$?
+
+     if [ "$status" != 0 ]; then
+        echo "Error: error in testing the pods"
+        return $status
+     fi
+
+     echo "all tests succeeded!!"
+
+     return $status
+    
+}
+
+function main {
+    status=0
+
+    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
+        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520'| head -n1 | awk '{print $1}') | awk '{print $9}')
+    fi
+
+    test_pods
+
+    let status=status+$?
+
+    echo ""
+    echo "GUIDs durring the test were:"
+    echo "Starting GUIDs:            $(echo $starting_guids)"
+    echo "After pods creation GUIDs: $(echo $after_creation_guids)"
+    echo "After pods deletion GUIDs: $(echo $after_deletion_guids)"
+    echo ""
+
+    if [[ $status != "0" ]]; then
+        return $status
+    fi
+}
+
+main
+
 let status=status+$?
-
-if [ "$status" != 0 ]; then
-    echo "Error: error in creating the first pod"
-    exit_code $status
-fi
-
-echo "Creating pod test-pod-2"
-pod_create 'test-pod-2'
-let status=status+$?
-
-if [ "$status" != 0 ]; then
-    echo "Error: error in creating the second pod"
-    exit_code $status
-fi
-
-test_pods 'test-pod-1' 'test-pod-2'
-
-let status=status+$?
-
-test_guids_reseted
-
-let status=status+$?
-
-if [ "$status" != 0 ]; then
-    echo "Error: error in testing the pods"
+if [[ $status != "0" ]]; then
     exit_code $status
 fi
 
