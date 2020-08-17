@@ -98,8 +98,8 @@ EOF
     git clone ${ANTREA_CNI_REPO} $WORKSPACE/antrea
     pushd $WORKSPACE/antrea
     if test ${ANTREA_CNI_PR}; then
-        git fetch --tags --progress ${ANTREA_CNI_REPO} +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin/pr/${ANTREA_CNI_PR}/head
+        git fetch --tags --progress ${ANTREA_CNI_REPO} +refs/pull/${ANTREA_CNI_PR}/head:refs/remotes/origin/pull/${ANTREA_CNI_PR}/head
+        git pull origin pull/${ANTREA_CNI_PR}/head
     elif test ${ANTREA_CNI_BRANCH}; then
         git checkout ${ANTREA_CNI_BRANCH}
     fi
