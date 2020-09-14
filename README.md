@@ -45,7 +45,7 @@ The projects use environment variables to configure their components. Each proje
 |EXTERNAL_HOSTNAME | hostname | this is used to configure Kubernetes local_cluser_up.sh EXTERNAL_HOSTNAME |
 |API_HOST_IP | host ip | this is used to configure Kubernetes local_cluser_up.sh API_HOST_IP |
 |KUBELET_HOST | host ip | this is used to configure Kubernetes local_cluser_up.sh KUBELET_HOST |
-|KUBECONFIG | /var/run/kubernetes/admin.kubeconfig | this is used to configure Kubernetes local_cluser_up.sh KUBECONFIG |
+|KUBECONFIG | /etc/kubernetes/admin.conf | this is used to configure Kubernetes local_cluser_up.sh KUBECONFIG |
 |NETWORK | "192.168.$N" | this is used to setup the macvlan network range, N is randomly generated |
 
 For more information on each project, please see the related project README.

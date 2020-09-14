@@ -11,7 +11,7 @@ export TIMEOUT=${TIMEOUT:-300}
 
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
-export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 

@@ -13,7 +13,7 @@ export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$P
 export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
 export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
 
-export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export IPOIB_CNI_REPO=${IPOIB_CNI_REPO:-https://github.com/Mellanox/ipoib-cni.git}
 export IPOIB_CNI_BRANCH=${IPOIB_CNI_BRANCH:-master}
