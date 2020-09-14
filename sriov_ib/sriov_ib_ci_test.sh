@@ -17,15 +17,9 @@ export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
 starting_guids=""
 after_creation_guids=""
 after_deletion_guids=""
-
-pushd $WORKSPACE
 
 function pod_create {
     pod_name="$1"
@@ -217,6 +211,8 @@ function main {
     if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
         export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520'| head -n1 | awk '{print $1}') | awk '{print $9}')
     fi
+
+    pushd $WORKSPACE
 
     test_pods
 

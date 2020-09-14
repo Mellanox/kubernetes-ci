@@ -1,19 +1,16 @@
 #!/bin/bash -x
 
-#TODO move to a common script
-
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
-source ./clean_common.sh
+source ./common/clean_common.sh
 
 function main {
+    mkdir -p $WORKSPACE
+    mkdir -p $LOGDIR
+    mkdir -p $ARTIFACTS
 
     delete_pods
 

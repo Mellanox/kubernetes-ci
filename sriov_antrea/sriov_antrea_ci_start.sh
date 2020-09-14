@@ -26,17 +26,6 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 export VFS_NUM=${VFS_NUM:-4}
 
-echo "Working in $WORKSPACE"
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
-echo "Get CPU architechture"
-export ARCH="amd"
-if [[ $(uname -a) == *"ppc"* ]]; then
-   export ARCH="ppc"
-fi
-
 function download_and_build {
     status=0
     if [ "$RECLONE" != true ] ; then
@@ -158,17 +147,11 @@ function create_vfs {
 }
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
-if [[ -f ./common_functions.sh ]]; then
-    source ./common_functions.sh
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to source common_functions.sh"
-        exit $status
-    fi
-else
-    echo "no common_functions.sh file found in this directory make sure you run the script from the repo dir!"
-    exit 1
-fi
+source ./common/common_functions.sh
+
+create_workspace
+
+get_arch
 
 create_vfs
 
@@ -179,6 +162,7 @@ if [ $? -ne 0 ]; then
     echo "Failed to deploy k8s"
     exit 1
 fi
+
 pushd $WORKSPACE
 
 download_and_build

@@ -23,11 +23,6 @@ export K8S_RDMA_SHARED_DEV_PLUGIN_REPO=${K8S_RDMA_SHARED_DEV_PLUGIN_REPO:-https:
 export K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH=${K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH:-master}
 export K8S_RDMA_SHARED_DEV_PLUGIN_PR=${K8S_RDMA_SHARED_DEV_PLUGIN_PR-''}
 
-echo "Working in $WORKSPACE"
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
 function download_and_build {
     status=0
 
@@ -65,17 +60,11 @@ function download_and_build {
 }
 
 
-if [[ -f ./common_functions.sh ]]; then
-    source ./common_functions.sh
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to source common_functions.sh"
-        exit $status
-    fi
-else
-    echo "no common_functions.sh file found in this directory make sure you run the script from the repo dir!"
-    exit 1
-fi
+source ./common/common_functions.sh
+
+create_workspace
+
+get_arch
 
 pushd $WORKSPACE
 
@@ -135,5 +124,6 @@ echo "All confs $ARTIFACTS"
 echo "Setup is up and running. Run following to start tests:"
 echo "# export KUBECONFIG=${KUBECONFIG}"
 echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./ipoib_cni_test.sh"
+
 popd
 exit $status

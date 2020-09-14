@@ -6,11 +6,7 @@ export ARTIFACTS=$WORKSPACE/artifacts
 
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
-source ./clean_common.sh
-
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
+source ./common/clean_common.sh
 
 function delete_nic_operator_namespace {
     nic_operator_namespace_file=$WORKSPACE/mellanox-network-operator/deploy/operator-ns.yaml
@@ -19,7 +15,10 @@ function delete_nic_operator_namespace {
 }
 
 function main {
-   
+    mkdir -p $WORKSPACE
+    mkdir -p $LOGDIR
+    mkdir -p $ARTIFACTS
+
     delete_pods
     
     delete_nic_operator_namespace

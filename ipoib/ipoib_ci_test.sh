@@ -15,8 +15,6 @@ export NETWORK=${NETWORK:-'192.168'}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
-pushd $WORKSPACE
-
 test_pod_image='mellanox/rping-test'
 
 function pod_create_server {
@@ -142,6 +140,8 @@ function test_pods {
 
     return $status
  }
+
+pushd $WORKSPACE
 
 status=0
 echo "Creating pod mofed-test-pod2 for ib_write_bw server"

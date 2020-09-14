@@ -28,6 +28,8 @@ export POD_CIDER=${POD_CIDER:-'192.168.0.0/16'}
 export SERVICE_CIDER=${SERVICE_CIDER:-'172.0.0.0/16'}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
+export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
+
 # generate random network
 N=$((1 + RANDOM % 128))
 export NETWORK=${NETWORK:-"192.168.$N"}
@@ -35,20 +37,26 @@ export NETWORK=${NETWORK:-"192.168.$N"}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 export SCRIPTS_DIR=${SCRIPTS_DIR:-$(pwd)}
 
-echo "Get CPU architechture"
-export ARCH="amd"
-if [[ $(uname -a) == *"ppc"* ]]; then
-   export ARCH="ppc"
-fi
-
-
-
 ##################################################
 ##################################################
 ###############   Functions   ####################
 ##################################################
 ##################################################
 
+create_workspace(){
+    echo "Working in $WORKSPACE"
+    mkdir -p $WORKSPACE
+    mkdir -p $LOGDIR
+    mkdir -p $ARTIFACTS
+}
+
+get_arch(){
+    echo "Get CPU architechture"
+    export ARCH="amd"
+    if [[ $(uname -a) == *"ppc"* ]]; then
+        export ARCH="ppc"
+    fi
+}
 
 k8s_build(){
     status=0

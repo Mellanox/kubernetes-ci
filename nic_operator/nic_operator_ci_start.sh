@@ -14,26 +14,13 @@ export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
 
-export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
-export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export KERNEL_VERSION=${KERNEL_VERSION:-4.15.0-109-generic}
 export OS_DISTRO=${OS_DISTRO:-ubuntu}
 export OS_VERSION=${OS_VERSION:-18.04}
 
-source ./common_functions.sh
-
-echo "Working in $WORKSPACE"
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
-echo "Get CPU architechture"
-export ARCH="amd"
-if [[ $(uname -a) == *"ppc"* ]]; then
-   export ARCH="ppc"
-fi
+source ./common/common_functions.sh
 
 function download_and_build {
     status=0

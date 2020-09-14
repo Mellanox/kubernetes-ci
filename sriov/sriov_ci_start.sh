@@ -36,17 +36,6 @@ export MACVLAN_INTERFACE=${MACVLAN_INTERFACE:-eno1}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 export VFS_NUM=${VFS_NUM:-4}
 
-echo "Working in $WORKSPACE"
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
-echo "Get CPU architechture"
-export ARCH="amd"
-if [[ $(uname -a) == *"ppc"* ]]; then
-   export ARCH="ppc"
-fi
-
 function download_and_build {
     status=0
     if [ "$RECLONE" != true ] ; then
@@ -208,17 +197,11 @@ function create_vfs {
 [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
 [ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
 
-if [[ -f ./common_functions.sh ]]; then
-    source ./common_functions.sh
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to source common_functions.sh"
-        exit $status
-    fi
-else
-    echo "no common_functions.sh file found in this directory make sure you run the script from the repo dir!"
-    exit 1
-fi
+source ./common/common_functions.sh
+
+create_workspace
+
+get_arch
 
 pushd $WORKSPACE
 
