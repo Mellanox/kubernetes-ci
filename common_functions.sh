@@ -3,7 +3,7 @@ export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
-export TIMEOUT=${TIMEOUT:-300}
+export TIMEOUT=${TIMEOUT:-600}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 # can be <latest_stable|master|vA.B.C>
@@ -39,12 +39,7 @@ export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
 N=$((1 + RANDOM % 128))
 export NETWORK=${NETWORK:-"192.168.$N"}
 
-echo "Working in $WORKSPACE"
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
-pushd $WORKSPACE
+export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
 echo "Get CPU architechture"
 export ARCH="amd"
@@ -319,6 +314,103 @@ function enable_rdma_mode {
             return $status
         fi
     fi
+}
+
+function deploy_calico {
+    rm -rf /etc/cni/net.d/00*
+    wget https://docs.projectcalico.org/manifests/calico.yaml -P "$ARTIFACTS"/
+    kubectl create -f "$ARTIFACTS"/calico.yaml
+
+    wait_pod_state "calico-node" "Running"
+
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to set setup calico!"
+        return $status
+    fi
+
+    sleep 20
+
+    # abdallahyas: Since we know that the calico creates a cni conf file with a name starting 
+    # with 10* which should be the first alphabetical file after the deleted 00* file, restarting 
+    # the multus pod will make the multus configure the calico as the primary network.
+    restart_multus_pod
+    return $?
+}
+
+function create_macvlan_net {
+    local macvlan_file="${ARTIFACTS}/macvlan-net.yaml"
+
+    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
+        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n1 | awk '{print $1}') | awk '{print $9}')
+    fi
+
+    if [[ ! -f "$macvlan_file" ]];then
+        echo "ERROR: Could not find the macvlan file in ${ARTIFACTS}!"
+        exit 1
+    fi
+
+    replace_placeholder REPLACE_INTERFACE "$SRIOV_INTERFACE" "$macvlan_file"
+    replace_placeholder REPLACE_NETWORK "$NETWORK" "$macvlan_file"
+
+    kubectl create -f "$macvlan_file"
+    return $?
+}
+
+function restart_multus_pod {
+    local multus_pod_name=$(kubectl get pods -A -o name | grep multus | cut -d'/' -f2)
+
+    if [[ -z "$multus_pod_name" ]];then
+        return 0
+    fi
+
+    local multus_pod_namespace=$(kubectl get pods -A -o wide | grep "$multus_pod_name" | awk '{print $1}')
+
+    kubectl delete pod -n $multus_pod_namespace $multus_pod_name
+}
+
+function replace_placeholder {
+    local placeholder=$1
+    local new_value=$2
+    local file=$3
+
+    echo "Changing \"$placeholder\" into \"$new_value\" in $file"
+    sed -i "s;$placeholder;$new_value;" $file
+}
+
+function yaml_write {
+    local key=$1
+    local new_value=$2
+    local file=$3
+
+    echo "Changing the value of \"$key\" in $file to \"$new_value\""
+    yq w -i "$file" "$key" "$new_value"
+}
+
+function yaml_read {
+    local key=$1
+    local file=$2
+    
+    yq r "$file" "$key"
+}
+
+function wait_pod_state {
+    pod_name="$1"
+    state="$2"
+    let stop=$(date '+%s')+$TIMEOUT
+    d=$(date '+%s')
+    while [ $d -lt $stop ]; do
+        echo "Waiting for pod to become $state"
+        pod_status=$(kubectl get pods -A | grep "$pod_name" | grep "$state")
+        if [ -n "$pod_status" ]; then
+            return 0
+        fi
+        kubectl get pods -A| grep "$pod_name"
+        sleep ${POLL_INTERVAL}
+        d=$(date '+%s')
+    done
+    echo "Error $pod_name is not up"
+    return 1
 }
 
 
