@@ -66,6 +66,8 @@ create_workspace
 
 get_arch
 
+cp ./ipoib/yaml/k8s-rdma-shared-device-plugin-configmap.yaml ${ARTIFACTS}/
+
 pushd $WORKSPACE
 
 load_rdma_modules
@@ -88,7 +90,7 @@ fi
 
 download_and_build
 
-/usr/local/bin/kubectl create -f $WORKSPACE/k8s-rdma-shared-dev-plugin/images/k8s-rdma-shared-dev-plugin-config-map.yaml
+/usr/local/bin/kubectl create -f ${ARTIFACTS}/k8s-rdma-shared-device-plugin-configmap.yaml
 /usr/local/bin/kubectl create -f $WORKSPACE/k8s-rdma-shared-dev-plugin/images/k8s-rdma-shared-dev-plugin-ds.yaml
 /usr/local/bin/kubectl create -f $WORKSPACE/ipoib-cni/images/ipoib-cni-daemonset.yaml
 cat  > $ARTIFACTS/pod.yaml <<EOF

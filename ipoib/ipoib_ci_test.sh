@@ -15,10 +15,18 @@ export NETWORK=${NETWORK:-'192.168'}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
+source ./common_functions.sh
+
 test_pod_image='mellanox/rping-test'
 
 function pod_create_server {
     POD_NAME=$1
+    local resource=$2
+
+    if [[ -z "$resource" ]]; then
+        resource="rdma/hca_shared_devices_a"
+    fi
+    
     cd $ARTIFACTS
     curl https://raw.githubusercontent.com/Mellanox/k8s-rdma-shared-dev-plugin/${K8S_RDMA_SHARED_DEV_PLUGIN}/example/test-hca-pod.yaml -o $ARTIFACTS/test-hca-pod.yaml
     patch <<EOF
@@ -44,12 +52,21 @@ EOF
     mv $ARTIFACTS/test-hca-pod.yaml $ARTIFACTS/${POD_NAME}.yaml
     sed -i "s/name: mofed-test-pod/name: ${POD_NAME}/g" $ARTIFACTS/${POD_NAME}.yaml
     sed -i "s;image: .*;image: $test_pod_image;g" $ARTIFACTS/${POD_NAME}.yaml
+    yaml_write spec.containers[0].resources.limits "" $ARTIFACTS/${POD_NAME}.yaml
+    yaml_write spec.containers[0].resources.limits.${resource} 1 $ARTIFACTS/${POD_NAME}.yaml
+    
     return $?
 }
 
 
 function pod_create_client {
     POD_NAME=$1
+    local resource=$2
+
+    if [[ -z "$resource" ]]; then
+        resource="rdma/hca_shared_devices_a"
+    fi
+
     cd $ARTIFACTS
     curl https://raw.githubusercontent.com/Mellanox/k8s-rdma-shared-dev-plugin/${K8S_RDMA_SHARED_DEV_PLUGIN}/example/test-hca-pod.yaml -o $ARTIFACTS/test-hca-pod.yaml
     patch <<EOF
@@ -69,6 +86,8 @@ EOF
     mv $ARTIFACTS/test-hca-pod.yaml $ARTIFACTS/${POD_NAME}.yaml
     sed -i "s/name: mofed-test-pod/name: ${POD_NAME}/g" $ARTIFACTS/${POD_NAME}.yaml
     sed -i "s;image: .*;image: $test_pod_image;g" $ARTIFACTS/${POD_NAME}.yaml
+    yaml_write spec.containers[0].resources.limits "" $ARTIFACTS/${POD_NAME}.yaml
+    yaml_write spec.containers[0].resources.limits.${resource} 1 $ARTIFACTS/${POD_NAME}.yaml
     return $?
 }
 
@@ -95,7 +114,7 @@ function pod_start {
 }
 
 
-function test_pod {
+function test_pod_resources {
     local status=0
     POD_NAME=$1
 
@@ -116,7 +135,7 @@ function test_pod {
     return $status
 }
 
-function test_pods {
+function test_pods_connectivity {
     local status=0
     POD_NAME_1=$1
     POD_NAME_2=$2
@@ -141,51 +160,94 @@ function test_pods {
     return $status
  }
 
+function delete_pod {
+    local pod_name="$1"
+    kubectl delete -f $ARTIFACTS/${pod_name}.yaml
+    sleep 20
+}
+
+function test_pods {
+    POD_NAME_1=$1
+    POD_NAME_2=$2
+    RESOURCE="$3"
+
+    local local_status=0
+
+    echo "Creating pod $POD_NAME_1 for ib_write_bw server using $RESOURCE"
+    pod_create_server $POD_NAME_1 "$RESOURCE"
+    let local_status=local_status+$?
+    if [ $local_status -ne 0 ]; then
+        echo "Failed to get $POD_NAME_1 yaml!"
+        return "$local_status"
+    fi
+    
+    pod_start "$POD_NAME_1"
+    let local_status=local_status+$?
+    if [ $local_status -ne 0 ]; then
+        echo "Failed to run $POD_NAME_1 !"
+        return "$local_status"
+    fi
+    
+    
+    echo "Creating pod $POD_NAME_2 as client using $RESOURCE"
+    pod_create_client "$POD_NAME_2" "$RESOURCE"
+    let local_status=local_status+$?
+    if [ $local_status -ne 0 ]; then
+        echo "Failed to get $POD_NAME_2 yaml !"
+        return "$local_status"
+    fi
+
+    pod_start "$POD_NAME_2"
+    let local_status=local_status+$?
+    if [ $local_status -ne 0 ]; then
+        echo "Failed to run $POD_NAME_2 !"
+        return "$local_status"
+    fi
+
+    test_pods_connectivity "$POD_NAME_1" "$POD_NAME_2"
+    let local_status=local_status+$?
+    if [ $local_status -ne 0 ]; then
+        echo "Failed to test pods!"
+    fi
+
+    delete_pod "$POD_NAME_1"
+    delete_pod "$POD_NAME_2"
+
+    return "$local_status"
+}
+
+function exit_script {
+    local local_rc="$1"
+    echo "All logs $LOGDIR"
+    echo "All confs $ARTIFACTS"
+    echo "To stop K8S run # WORKSPACE=${WORKSPACE} ./cni_stop.sh"
+    exit $local_rc
+}
+
 pushd $WORKSPACE
 
 status=0
-echo "Creating pod mofed-test-pod2 for ib_write_bw server"
-pod_create_server mofed-test-pod1
-let status=status+$?
-if [ $status -ne 0 ]; then
-    echo "Failed to get mofed-test-pod1 yaml!"
-    exit "$status"
-fi
 
-pod_start mofed-test-pod1
+test_pods legacy-test-pod1 legacy-test-pod2 rdma/hca_shared_devices_a
+
 let status=status+$?
 if [ $status -ne 0 ]; then
-    echo "Failed to run mofed-test-pod1!"
-    exit "$status"
+    echo "Failed to test legacy devices mode !"
+    exit_script "$status"
 fi
 
 
-echo "Creating pod mofed-test-pod2"
-pod_create_client mofed-test-pod2
+test_pods selectors-test-pod1 selectors-test-pod2 rdma/hca_shared_devices_b
+
 let status=status+$?
 if [ $status -ne 0 ]; then
-    echo "Failed to get mofed-test-pod2 yaml!"
-    exit "$status"
+    echo "Failed to test selector devices mode !"
+    exit_script "$status"
 fi
 
-pod_start mofed-test-pod2
-let status=status+$?
-if [ $status -ne 0 ]; then
-    echo "Failed to run mofed-test-pod2!"
-    exit "$status"
-fi
+echo ""
+echo "All tests succeeded!"
+echo ""
 
-
-test_pods mofed-test-pod1 mofed-test-pod2
-let status=status+$?
-if [ $status -ne 0 ]; then
-    echo "Failed to test pods!"
-    exit "$status"
-fi
-
-
-
-echo "All logs $LOGDIR"
-echo "All confs $ARTIFACTS"
-echo "To stop K8S run # WORKSPACE=${WORKSPACE} ./cni_stop.sh"
-exit $status
+popd
+exit_script "$status"
