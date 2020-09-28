@@ -12,7 +12,7 @@ export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 export NETWORK=${NETWORK:-'192.168'}
 
-export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}

@@ -22,24 +22,18 @@ export PLUGINS_BRANCH_PR=${PLUGINS_BRANCH_PR:-''}
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
 
-export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
-export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
-export ALLOW_PRIVILEGED=${ALLOW_PRIVILEGED:-true}
-export NET_PLUGIN=${NET_PLUGIN:-cni}
-
-export KUBE_ENABLE_CLUSTER_DNS=${KUBE_ENABLE_CLUSTER_DNS:-false}
 export API_HOST=$(hostname)
-export HOSTNAME_OVERRIDE=$(hostname).$(hostname -y)
-export EXTERNAL_HOSTNAME=$(hostname).$(hostname -y)
 export API_HOST_IP=$(hostname -I | awk '{print $1}')
-export KUBELET_HOST=$(hostname -I | awk '{print $1}')
-export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+export POD_CIDER=${POD_CIDER:-'192.168.0.0/16'}
+export SERVICE_CIDER=${SERVICE_CIDER:-'172.0.0.0/16'}
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 # generate random network
 N=$((1 + RANDOM % 128))
 export NETWORK=${NETWORK:-"192.168.$N"}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
+export SCRIPTS_DIR=${SCRIPTS_DIR:-$(pwd)}
 
 echo "Get CPU architechture"
 export ARCH="amd"
@@ -79,7 +73,7 @@ k8s_build(){
         return $status
     fi
 
-    make
+    make kubectl kubeadm kubelet
 
     let status=status+$?
     if [ "$status" != 0 ]; then
@@ -87,7 +81,7 @@ k8s_build(){
         return $status
     fi
 
-    cp _output/bin/kubectl /usr/local/bin/kubectl
+    cp _output/bin/kubectl _output/bin/kubeadm _output/bin/kubelet  /usr/local/bin/
 
     kubectl version --client
     let status=status+$?
@@ -115,33 +109,53 @@ k8s_build(){
     popd
 }
 
+prepare_kubelet(){
+    cp -rf ${SCRIPTS_DIR}/deploy/kubelet/* /etc/systemd/system/
+    sudo systemctl daemon-reload
+}
+
+get_distro(){
+    grep ^NAME= /etc/os-release | cut -d'=' -f2 -s | tr -d '"' | tr [:upper:] [:lower:] | cut -d" " -f 1
+}
+
+configure_firewall(){
+    local os_distro=$(get_distro)
+    if [[ "$os_distro" == "ubuntu" ]];then
+        systemctl stop ufw
+        systemctl disable ufw
+    elif [[ "$os_distro" == "centos" ]]; then
+        systemctl stop firewalld
+        systemctl stop iptables
+        systemctl disable firewalld
+        systemctl disable iptables
+    else
+        echo "Warning: Unknown Distribution \"$os_distro\", stopping iptables..."
+        systemctl stop iptables
+        systemctl disable iptables
+    fi
+}
+
 k8s_run(){
     status=0
-    $GOPATH/src/k8s.io/kubernetes/hack/install-etcd.sh
-    screen -S multus_kube -d -m bash -x $GOPATH/src/k8s.io/kubernetes/hack/local-up-cluster.sh
+
+    prepare_kubelet
+
+    configure_firewall
+
+    kubeadm init --apiserver-advertise-address=$API_HOST_IP --node-name=$API_HOST --pod-network-cidr $POD_CIDER --service-cidr $SERVICE_CIDER
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Failed to screen the k8s cluster!"
+        echo 'Failed to run kubeadm!'
         return $status
     fi
 
-    kubectl get pods
-    rc=$?
-    let stop=$(date '+%s')+$TIMEOUT
-    d=$(date '+%s')
-    while [ $d -lt $stop ]; do
-       echo "Wait until K8S is up"
-       kubectl get pods
-       rc=$?
-       d=$(date '+%s')
-       sleep $POLL_INTERVAL
-       if [ $rc -eq 0 ]; then
-           echo "K8S is up and running"
-           return 0
-      fi
-    done
-    echo "K8S failed to run in $TIMEOUT sec"
-    return 1
+    mkdir -p $HOME/.kube
+    sudo cp -fi /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    sudo chmod 644 /etc/kubernetes/*.conf
+
+    kubectl taint nodes $(kubectl get nodes -o name | cut -d'/' -f 2) --all node-role.kubernetes.io/master-
+    return $?
 }
 
 network_plugins_install(){
@@ -218,7 +232,7 @@ multus_configuration() {
     echo "Configure Multus"
     date
     sleep 30
-    sed -i 's/\/etc\/cni\/net.d\/multus.d\/multus.kubeconfig/\/var\/run\/kubernetes\/admin.kubeconfig/g' $WORKSPACE/multus-cni/images/multus-daemonset.yml
+    sed -i 's;/etc/cni/net.d/multus.d/multus.kubeconfig;/etc/kubernetes/admin.conf;g' $WORKSPACE/multus-cni/images/multus-daemonset.yml
 
     kubectl create -f $WORKSPACE/multus-cni/images/multus-daemonset.yml
 

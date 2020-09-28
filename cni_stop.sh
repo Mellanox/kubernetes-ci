@@ -5,7 +5,7 @@
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
-export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 mkdir -p $WORKSPACE
 mkdir -p $LOGDIR
@@ -17,22 +17,8 @@ function main {
 
     delete_pods
 
-    stop_system_deployments
+    general_cleaning
 
-    stop_system_daemonset
-    
-    stop_k8s_screen
-    
-    asure_all_stoped
-    
-    delete_chache_files
-    
-    delete_all_docker_container
-    
-    delete_all_docker_images
-    
-    clean_tmp_workspaces
-    
     reset_vfs_guids
     
     cp /tmp/kube*.log $LOGDIR

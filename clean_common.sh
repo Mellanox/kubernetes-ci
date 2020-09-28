@@ -19,10 +19,9 @@ function stop_system_daemonset {
     done
 }
 
-function stop_k8s_screen {
-    for sc in $(screen -ls|grep multus|awk '{print $1}'); do
-        screen -X -S $sc quit
-    done
+function stop_k8s {
+    kubeadm reset -f
+    rm -rf $HOME/.kube/config
 }
 
 function asure_all_stoped {
@@ -107,7 +106,23 @@ function unload_module {
     fi
 }
 
-let status=0
+function general_cleaning {
+    stop_system_deployments
+
+    stop_system_daemonset
+
+    stop_k8s
+
+    asure_all_stoped
+
+    delete_chache_files
+
+    delete_all_docker_container
+
+    delete_all_docker_images
+
+    clean_tmp_workspaces
+}
 
 function load_core_drivers {
     modprobe mlx5_core
