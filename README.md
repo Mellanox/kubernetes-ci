@@ -1,4 +1,5 @@
-[![Build status](http://13.74.249.42:8080/job/CNI-sriov-Daily/badge/icon?subject=sriov)](http://13.74.249.42:8080/job/CNI-sriov-Daily/)     [![Build Status](http://13.74.249.42:8080/job/CNI-ipoib-Daily/badge/icon?subject=ipoib)](http://13.74.249.42:8080/job/CNI-ipoib-Daily)     [![Build Status](http://13.74.249.42:8080/job/CNI-sriov_ib-Daily/badge/icon?subject=sriov_ib)](http://13.74.249.42:8080/job/CNI-sriov_ib-Daily/)    [![Build Status](http://13.74.249.42:8080/job/CNI-sriov_antrea-Daily/badge/icon?subject=sriov_antrea)](http://13.74.249.42:8080/job/CNI-sriov_antrea-Daily)
+[![Build status](http://13.74.249.42:8080/job/CNI-sriov-Daily/badge/icon?subject=sriov)](http://13.74.249.42:8080/job/CNI-sriov-Daily/)     [![Build Status](http://13.74.249.42:8080/job/CNI-ipoib-Daily/badge/icon?subject=ipoib)](http://13.74.249.42:8080/job/CNI-ipoib-Daily)     [![Build Status](http://13.74.249.42:8080/job/CNI-sriov_ib-Daily/badge/icon?subject=sriov_ib)](http://13.74.249.42:8080/job/CNI-sriov_ib-Daily/)    [![Build Status](http://13.74.249.42:8080/job/CNI-sriov_antrea-Daily/badge/icon?subject=sriov_antrea)](http://13.74.249.42:8080/job/CNI-sriov_antrea-Daily) 
+[![Build Status](http://13.74.249.42:8080/job/CNI-nic_operator-Daily/badge/icon?subject=nic_operator)](http://13.74.249.42:8080/job/CNI-nic_operator-Daily)
 # Mellanox Kubernetes CIs
 A repo to hold Mellanox Kubernetes CIs scripts.
 
@@ -9,13 +10,26 @@ The CIs are divided into projects depending on the wanted tests, the currently s
 * `sriov_ib`: tests deploying Kubernetes with sriov on top of Mellanox Infiniband card.
 * `sriov_antrea`: tests deploying Kubernetes with sriov using the vmware-tenzu/antrea project.
 * `ipoib`: tests deploying Kubernetes on top of Mellanox Infiniband card.
+* `nic_operator`: tests deploying Mellanox network operator with the OFED driver container, and RDMA shared device plugin.
 
 ### CIs workflow
-Any CI execution runs three scripts: the install script, the test script, and the stop script:
+Any CI execution runs three scripts: the start script, the test script, and the stop script:
 
-* `<project>_cni_install.sh`: the install script is used to build the latest versions of the components used in the project, including the Kubernetes.
-* `<project>_cni_test.sh`: the test script tests the functionality of the project, this is deferent depending on the project.
-* `cni_stop.sh`: the stop script stops the project components and do cache and images cleanup.
+* `<project>_ci_start.sh`: the install script is used to build the latest versions of the components used in the project, including the Kubernetes.
+* `<project>_ci_test.sh`: the test script tests the functionality of the project, this is deferent depending on the project.
+* `<project>_ci_stop.sh`: the stop script stops the project components and do cache and images cleanup.
+
+To start any project, the start script needs to be run **from the root directory of the project**, like the following form:
+
+    `WORKSPACE=/tmp/<project> ./<project>/<project>_ci_start.sh`
+
+After the start scripts finishes, a line of how to correctly invoke the test script will be generated at the end of the stdout output, use that to invoke the test scripts, for example:
+
+    `WORKSPACE=/tmp/<project> ./<project>/<project>_ci_test.sh`
+
+When the test script finishes, the stop script should be invoked, with the line at the end of the test scripts, for example:
+
+    `WORKSPACE=/tmp/<project> ./<project>/<project>_ci_stop.sh`
 
 ### Configuration
 The projects use environment variables to configure their components. Each project has its own set of configurations, but there are some common configurations that all the projects use, those parameters should be exported to environment in case they are needed to change, following are the common configuration of the CIs:
@@ -48,4 +62,4 @@ The projects use environment variables to configure their components. Each proje
 |KUBECONFIG | /etc/kubernetes/admin.conf | this is used to configure Kubernetes local_cluser_up.sh KUBECONFIG |
 |NETWORK | "192.168.$N" | this is used to setup the macvlan network range, N is randomly generated |
 
-For more information on each project, please see the related project README.
+For more information on each project, please see the related project folder.

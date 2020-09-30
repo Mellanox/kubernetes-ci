@@ -15,7 +15,7 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
-source ./common_functions.sh
+source ./common/common_functions.sh
 
 test_pod_image='mellanox/rping-test'
 

@@ -15,12 +15,6 @@ export NETWORK=${NETWORK:-'192.168'}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
-mkdir -p $WORKSPACE
-mkdir -p $LOGDIR
-mkdir -p $ARTIFACTS
-
-pushd $WORKSPACE
-
 function pod_create {
     pod_name="$1"
     sriov_pod=$ARTIFACTS/"$pod_name"
@@ -29,11 +23,11 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: $pod_name
-#  annotations:
-#    k8s.v1.cni.cncf.io/networks: sriov-antrea-net
+  annotations:
+    k8s.v1.cni.cncf.io/networks: sriov-rdma-net
 spec:
   containers:
-    - name: antrea-app
+    - name: rdma-app
       image: mmdh/rping-test
       imagePullPolicy: IfNotPresent
       securityContext:
@@ -43,9 +37,9 @@ spec:
       args: [ "while true; do sleep 300000; done;" ]
       resources:
         requests:
-          mellanox.com/sriov_antrea: '1'
+          mellanox.com/sriov_rdma: '1'
         limits:
-          mellanox.com/sriov_antrea: '1'
+          mellanox.com/sriov_rdma: '1'
 EOF
     kubectl get pods
     kubectl delete -f $sriov_pod 2>&1|tee > /dev/null
@@ -79,15 +73,15 @@ function test_pods {
     POD_NAME_1=$1
     POD_NAME_2=$2
 
-    ip_1=$(/usr/local/bin/kubectl exec -i ${POD_NAME_1} -- ifconfig eth0 |grep inet|awk '{print $2}')
-    /usr/local/bin/kubectl exec -i ${POD_NAME_1} -- ifconfig eth0
+    ip_1=$(/usr/local/bin/kubectl exec -i ${POD_NAME_1} -- ifconfig net1|grep inet|awk '{print $2}')
+    /usr/local/bin/kubectl exec -i ${POD_NAME_1} -- ifconfig net1
     echo "${POD_NAME_1} has ip ${ip_1}"
 
-    ip_2=$(/usr/local/bin/kubectl exec -i ${POD_NAME_2} -- ifconfig eth0 |grep inet|awk '{print $2}')
-    /usr/local/bin/kubectl exec -i ${POD_NAME_2} -- ifconfig eth0
+    ip_2=$(/usr/local/bin/kubectl exec -i ${POD_NAME_2} -- ifconfig net1|grep inet|awk '{print $2}')
+    /usr/local/bin/kubectl exec -i ${POD_NAME_2} -- ifconfig net1
     echo "${POD_NAME_2} has ip ${ip_2}"
 
-    /usr/local/bin/kubectl exec ${POD_NAME_2} -- bash -c "ping $ip_1 -c 10 >/dev/null 2>&1"
+    /usr/local/bin/kubectl exec ${POD_NAME_2} -- bash -c "ping $ip_1 -c 1 >/dev/null 2>&1"
     let status=status+$?
 
     if [ "$status" != 0 ]; then
@@ -95,53 +89,17 @@ function test_pods {
         return $status
     fi
 
-    echo "connectivity test passed!!!
+    #TOFIX: rping test need to be fixed
+#   screen -S rping_server -d -m bash -x -c "kubectl exec -it $POD_NAME_1 -- rping -svd"
+#   kubectl exec -it $POD_NAME_2 -- sh -c "rping -cvd -a $ip_1 -C 1 > /dev/null 2>&1"
+#   let status=status+$?
+#
+#   if [ "$status" != 0 ]; then
+#       echo "Error: rping failed"
+#       return $status
+#   fi
 
-    "
-    echo "checking if the pod have the vf"
-
-    if [[ -z "$(kubectl exec -it test-pod-1 -- ls -l /sys/class/net/ | grep eth0 | grep -o pci000)" ]]; then
-	echo "Error: pod test-pod-1 did not get the vf"
-	return 1
-    fi
-
-    if [[ -z "$(kubectl exec -it test-pod-2 -- ls -l /sys/class/net/ | grep eth0 | grep -o pci000)" ]]; then
-        echo "Error: pod test-pod-2 did not get the vf"
-        return 1
-    fi
-
-    if [[ -z "$(kubectl exec -it test-pod-1 -- ls -l /sys/class/net/eth0/device/driver | grep mlx)" ]]; then
-        echo "Error: pod test-pod-1 driver is not mellanox driver!"
-	return 1
-    fi
-
-    if [[ -z "$(kubectl exec -it test-pod-2 -- ls -l /sys/class/net/eth0/device/driver | grep mlx)" ]]; then
-         echo "Error: pod test-pod-2 driver is not mellanox driver!"
-         return 1
-    fi
-
-
-    echo "Success!! The pods have the vfs."
-    echo ""
-    echo "Checking if hw-offload is enabled inside the ovs container."
-    
-    agent_pod_name=$(kubectl get pods -A -o name | grep antrea-agent | cut -d/ -f2)
-    if [[ -z "$agent_pod_name" ]];then
-        echo "Couldn't find the antrea agent pod!"
-	return 1
-    fi
-    ovs_options=$(kubectl -n kube-system -c antrea-ovs exec -t $agent_pod_name -- ovs-vsctl get Open_vSwitch . other_config)
-    if [[ "$?" != "0" ]];then
-        echo "Cloud not retriev ovs configuration!"
-	return 1
-    fi
-    echo "ovs options are: $ovs_options"
-    if [[ "$ovs_options" =~ "hw-offload=\"true\"" ]];then
-        echo "hardware offload is enabled."
-    else
-        echo "hardware offload is not enabled."
-	return 1
-    fi
+    echo "all tests succeeded!!" 
 
     return $status
  }
@@ -155,6 +113,9 @@ function exit_code {
 }
 
 status=0
+
+pushd $WORKSPACE
+
 echo "Creating pod test-pod-1"
 pod_create 'test-pod-1'
 let status=status+$?
@@ -181,7 +142,5 @@ if [ "$status" != 0 ]; then
     echo "Error: error in testing the pods"
     exit_code $status
 fi
-
-echo "all tests succeeded!!"
 
 exit_code $status
