@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rdma-devices
+  namespace: kube-system
+data:
+  config.json: |
+    {
+        "configList": [{
+             "resourceName": "hca_shared_devices_a",
+             "rdmaHcaMax": 1000,
+             "devices": ["ib0"]
+           },
+           {
+             "resourceName": "hca_shared_devices_b",
+             "rdmaHcaMax": 500,
+             "selectors": {
+               "vendors": ["15b3"],
+               "deviceIDs": ["1017"],
+               "ifNames": ["ib0"]
+             }
+           }
+        ]
+    }
