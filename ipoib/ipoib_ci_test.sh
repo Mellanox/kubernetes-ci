@@ -15,7 +15,7 @@ export NETWORK=${NETWORK:-'192.168'}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
-source ./common_functions.sh
+source ./common/common_functions.sh
 
 test_pod_image='mellanox/rping-test'
 
