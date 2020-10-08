@@ -48,6 +48,8 @@ create_workspace(){
     mkdir -p $WORKSPACE
     mkdir -p $LOGDIR
     mkdir -p $ARTIFACTS
+
+    date +"%Y-%m-%d %H:%M:%S" > ${LOGDIR}/start-time.log
 }
 
 get_arch(){

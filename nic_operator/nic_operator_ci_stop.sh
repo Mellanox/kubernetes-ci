@@ -21,6 +21,8 @@ function main {
 
     delete_pods
     
+    collect_pods_logs
+
     delete_nic_operator_namespace
 
     general_cleaning
