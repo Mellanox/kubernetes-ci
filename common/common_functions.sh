@@ -478,3 +478,81 @@ function deploy_k8s_with_multus {
         return $status
     fi
 }
+
+function change_k8s_resource {
+    local resource_kind="$1"
+    local resource_name="$2"
+    local resource_key="$3"
+    local resource_new_value="$4"
+    local resource_file="$5"
+
+    let doc_num=0
+    changed="false"
+    for kind in $(yq r -d "*" $resource_file kind);do
+        if [[ "$kind" == "$resource_kind" ]];then
+            name=$(yq r -d "$doc_num" $resource_file metadata.name)
+            if [[ "$name" == "$resource_name" ]];then
+                echo "changing $resource_key to $resource_new_value"
+                yq w -i -d "$doc_num" "$resource_file" "$resource_key" "$resource_new_value"
+                changed="true"
+                break
+            fi
+        fi
+        let doc_num=$doc_num+1
+    done
+
+    if [[ "$changed" == "false" ]];then
+        echo "Failed to change $resource_key to $resource_new_value in $resource_file!"
+        return 1
+   fi
+
+   return 0
+}
+
+function deploy_sriov_device_plugin {
+    echo "Download ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO}"
+    rm -rf $WORKSPACE/sriov-network-device-plugin
+    git clone ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} $WORKSPACE/sriov-network-device-plugin
+    pushd $WORKSPACE/sriov-network-device-plugin
+    if test ${SRIOV_NETWORK_DEVICE_PLUGIN_PR}; then
+        git fetch --tags --progress ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} +refs/pull/*:refs/remotes/origin/pr/*
+        git pull origin pull/${SRIOV_NETWORK_DEVICE_PLUGIN_PR}/head
+    elif test ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}; then
+        git checkout ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}
+    fi
+    git log -p -1 > $ARTIFACTS/sriov-network-device-plugin-git.txt
+    make build
+    let status=status+$?
+    make image
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}"
+        return $status
+    fi
+
+    \cp build/* $CNI_BIN_DIR/
+    change_k8s_resource "DaemonSet" "kube-sriov-device-plugin-amd64" "spec.template.spec.containers[0].image" "nfvpe/sriov-device-plugin:latest" "./deployments/k8s-v1.16/sriovdp-daemonset.yaml"
+    popd
+    cat > $ARTIFACTS/configMap.yaml <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sriovdp-config
+  namespace: kube-system
+data:
+  config.json: |
+    {
+      "resourceList": [{
+          "resourcePrefix": "mellanox.com",
+          "resourceName": "sriov_rdma",
+          "selectors": {
+                  "vendors": ["15b3"],
+                  "devices": ["1018"],
+                  "drivers": ["mlx5_core"],
+                  "isRdma": true
+              }
+      }
+      ]
+    }
+EOF
+}

@@ -128,50 +128,7 @@ EOF
     \cp build/* $CNI_BIN_DIR/
     popd
 
-    echo "Download ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO}"
-    rm -rf $WORKSPACE/sriov-network-device-plugin
-    git clone ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} $WORKSPACE/sriov-network-device-plugin
-    pushd $WORKSPACE/sriov-network-device-plugin
-    if test ${SRIOV_NETWORK_DEVICE_PLUGIN_PR}; then
-        git fetch --tags --progress ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin pull/${SRIOV_NETWORK_DEVICE_PLUGIN_PR}/head
-    elif test ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}; then
-        git checkout ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}
-    fi
-    git log -p -1 > $ARTIFACTS/sriov-network-device-plugin-git.txt
-    make build
-    let status=status+$?
-    make image
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to build ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}"
-        return $status
-    fi
-
-    \cp build/* $CNI_BIN_DIR/
-    popd
-    cat > $ARTIFACTS/configMap.yaml <<EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: sriovdp-config
-  namespace: kube-system
-data:
-  config.json: |
-    {
-      "resourceList": [{
-          "resourcePrefix": "mellanox.com",
-          "resourceName": "sriov_rdma",
-          "selectors": {
-                  "vendors": ["15b3"],
-                  "devices": ["1018"],
-                  "drivers": ["mlx5_core"],
-                  "isRdma": true
-              }
-      }
-      ]
-    }
-EOF
+    deploy_sriov_device_plugin
 
     cp /etc/pcidp/config.json $ARTIFACTS
     return 0
@@ -235,17 +192,17 @@ kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml
 
 kubectl create -f $ARTIFACTS/configMap.yaml
 
-kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
+kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml
 
 kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-cni-daemonset.yaml
 
-cp $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
+cp $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
-echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./sriov_cni_test.sh"
+echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./sriov/sriov_ci_test.sh"
 popd
 exit $status
