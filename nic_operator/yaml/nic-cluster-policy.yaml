@@ -14,7 +14,7 @@
 apiVersion: mellanox.com/v1alpha1
 kind: NicClusterPolicy
 metadata:
-  name: ofed-rdma-nicclusterpolicy
+  name: nic-cluster-policy
   namespace: mlnx-network-operator
 spec:
   ofedDriver:

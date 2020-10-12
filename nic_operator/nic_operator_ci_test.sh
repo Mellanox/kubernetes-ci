@@ -25,7 +25,7 @@ function nic_policy_create {
     fi
 
     nic_operator_dir=$WORKSPACE/mellanox-network-operator/deploy
-    cr_file=$ARTIFACTS/ofed-rdma-nic-policy.yaml
+    cr_file=$ARTIFACTS/nic-cluster-policy.yaml
 
     replace_placeholder REPLACE_INTERFACE $SRIOV_INTERFACE $cr_file
     kubectl create -f "$cr_file"
