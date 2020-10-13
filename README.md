@@ -1,4 +1,8 @@
 [![Build status](http://13.74.249.42:8080/job/CNI-sriov-Daily/badge/icon?subject=sriov)](http://13.74.249.42:8080/job/CNI-sriov-Daily/)     [![Build Status](http://13.74.249.42:8080/job/CNI-ipoib-Daily/badge/icon?subject=ipoib)](http://13.74.249.42:8080/job/CNI-ipoib-Daily)     [![Build Status](http://13.74.249.42:8080/job/CNI-sriov_ib-Daily/badge/icon?subject=sriov_ib)](http://13.74.249.42:8080/job/CNI-sriov_ib-Daily/)    [![Build Status](http://13.74.249.42:8080/job/CNI-sriov_antrea-Daily/badge/icon?subject=sriov_antrea)](http://13.74.249.42:8080/job/CNI-sriov_antrea-Daily) 
+
+
+Mellanox CI: testing fast job abort
+
 [![Build Status](http://13.74.249.42:8080/job/CNI-nic_operator-Daily/badge/icon?subject=nic_operator)](http://13.74.249.42:8080/job/CNI-nic_operator-Daily)
 # Mellanox Kubernetes CIs
 A repo to hold Mellanox Kubernetes CIs scripts.
