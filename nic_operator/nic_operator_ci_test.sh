@@ -15,20 +15,26 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
+export OFED_IMAGE=${OFED_IMAGE:-'ofed-driver'}
+export OFED_REPO=${OFED_REPO:-'mellanox'}
+export OFED_VERSION=${OFED_VERSION:-'5.0-2.1.8.0'}
+
+export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-'k8s-rdma-shared-dev-plugin'}
+export DEVICE_PLUGIN_REPO=${DEVICE_PLUGIN_REPO:-'mellanox'}
+export DEVICE_PLUGIN_VERSION=${DEVICE_PLUGIN_VERSION:-'latest'}
+
+export NIC_CLUSTER_POLICY_DEFAULT_NAME='nic-cluster-policy'
+
 source ./common/common_functions.sh
 source ./common/clean_common.sh
 
 test_pod_image='mellanox/rping-test'
 
 function nic_policy_create {
-    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
-        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n1 | awk '{print $1}') | awk '{print $9}')
-    fi
+    cr_file="$1"
 
     nic_operator_dir=$WORKSPACE/mellanox-network-operator/deploy
-    cr_file=$ARTIFACTS/nic-cluster-policy.yaml
 
-    replace_placeholder REPLACE_INTERFACE $SRIOV_INTERFACE $cr_file
     kubectl create -f "$cr_file"
     
     cr_name=$(yaml_read metadata.name $cr_file)
@@ -233,6 +239,21 @@ function test_rdma_plugin {
 function test_deleting_network_operator {
     echo ""
     echo "Test Deleting Network Operator...."
+    status=0
+
+    local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
 
     local ofed_module_srcversion="$(cat /sys/module/mlx5_core/srcversion)"
 
@@ -249,7 +270,7 @@ function test_deleting_network_operator {
 
     echo ""
     echo "Checking mlx5_core srcversion... "
-    modprobe mlx5_core
+    sudo modprobe mlx5_core
     sleep 5
     if [[ "$(cat /sys/module/mlx5_core/srcversion)" == "$ofed_module_srcversion" ]];then
         echo "ERROR: inbox mlx5_core srcversion is the same as the OFED version!!"
@@ -260,6 +281,117 @@ function test_deleting_network_operator {
     echo ""
     echo "Test Deleting Network Operator succeeded!"
     return 0
+}
+
+function configure_common {
+    local file_name="$1"
+    local nic_policy_name=${2:-"$NIC_CLUSTER_POLICY_DEFAULT_NAME"}
+
+    if [[ ! -f "$file_name" ]];then
+        touch "$file_name"
+    fi
+
+    yaml_write 'apiVersion' 'mellanox.com/v1alpha1' "$file_name"
+    yaml_write 'kind' 'NicClusterPolicy' "$file_name"
+    yaml_write 'metadata.name' "$nic_policy_name" "$file_name"
+    yaml_write 'metadata.namespace' 'mlnx-network-operator' "$file_name"
+}
+
+function configure_ofed {
+    local file_name="$1"
+
+    yaml_write spec.ofedDriver.image "$OFED_IMAGE" "$file_name"
+    yaml_write spec.ofedDriver.repository "$OFED_REPO" "$file_name"
+    yaml_write spec.ofedDriver.version "$OFED_VERSION" "$file_name"
+}
+
+function configure_device_plugin {
+    local file_name="$1"
+    local rdma_resource_name=${2:-'hca_shared_devices_a'}
+
+    yaml_write spec.devicePlugin.image "$DEVICE_PLUGIN_IMAGE" "$file_name"
+    yaml_write spec.devicePlugin.repository "$DEVICE_PLUGIN_REPO" "$file_name"
+    yaml_write spec.devicePlugin.version "$DEVICE_PLUGIN_VERSION" "$file_name"
+
+    yaml_write spec.devicePlugin.config "\
+{
+  \"configList\": [{
+    \"resourceName\": \"$rdma_resource_name\",
+    \"rdmaHcaMax\": 1000,
+    \"devices\": [\"$SRIOV_INTERFACE\"]
+  }]
+}
+" "$file_name"
+}
+
+function test_ofed_only {
+    status=0
+    local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    test_ofed_drivers
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Ofed modules failed!"
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete ofed-nic-cluster-policy.yaml!"
+        return $status
+    fi
+}
+
+function test_ofed_and_rdma {
+    status=0
+    local sample_file="$ARTIFACTS"/ofed-rdma-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+    configure_device_plugin "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    test_ofed_drivers
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Ofed modules failed!"
+        return $status
+    fi
+
+    test_rdma_plugin
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: RDMA device plugin testing Failed!"
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete ofed-rdma-nic-cluster-policy.yaml!"
+        return $status
+    fi
 }
 
 function exit_code {
@@ -279,29 +411,24 @@ function main {
     mkdir -p $ARTIFACTS
     
     pushd $WORKSPACE
-    
-    echo "Creating example nic cluster policy/"
-    
-    nic_policy_create
+
+    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
+        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n1 | awk '{print $1}') | awk '{print $9}')
+    fi
+
+    test_ofed_only
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Error: error in creating the example nic_policy."
+        echo "Error: Testing deploying the OFED only failed!!"
         exit_code $status
     fi
     
     sleep 10
-    
-    test_ofed_drivers
+
+    test_ofed_and_rdma
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Error: Ofed modules failed!"
-        exit_code $status
-    fi
-    
-    test_rdma_plugin
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Error: RDMA device plugin testing Failed!"
+        echo "Error: Testing deploying OFED and RDMA shared device plugin failed!!"
         exit_code $status
     fi
 
