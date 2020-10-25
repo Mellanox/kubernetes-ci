@@ -43,9 +43,9 @@ spec:
       args: [ "while true; do sleep 300000; done;" ]
       resources:
         requests:
-          mellanox.com/mlnx_sriov_rdma_ib: '1'
+          mellanox.com/sriov_rdma: '1'
         limits:
-          mellanox.com/mlnx_sriov_rdma_ib: '1'
+          mellanox.com/sriov_rdma: '1'
 EOF
     kubectl get pods
     kubectl delete -f $sriov_pod 2>&1|tee > /dev/null
@@ -96,17 +96,16 @@ function test_pods_connectivity {
         return $status
     fi
 
-    #TOFIX: rping test need to be fixed
-#    screen -S rping_server -d -m bash -x -c "kubectl exec $POD_NAME_1 -- rping -svd"
-#    screen -list
-#    sleep 10
-#    kubectl exec -it $POD_NAME_2 -- sh -c "rping -cvd -a $ip_1 -C 1 > /dev/null 2>&1"
-#    let status=status+$?
-#
-#    if [ "$status" != 0 ]; then
-#        echo "Error: rping failed"
-#        return $status
-#    fi
+    screen -S rping_server -d -m bash -x -c "kubectl exec -t $POD_NAME_1 -- rping -svd"
+    sleep 20
+    kubectl exec -t $POD_NAME_2 -- rping -cvd -a $ip_1 -C 1
+
+    let status=status+$?
+
+    if [ "$status" != 0 ]; then
+        echo "Error: rping failed"
+        return $status
+    fi
 
     return $status
  }
@@ -148,7 +147,7 @@ function exit_code {
     rc="$1"
     echo "All logs $LOGDIR"
     echo "All confs $ARTIFACTS"
-    echo "To stop K8S run # WORKSPACE=${WORKSPACE} ./cni_stop.sh"
+    echo "To stop K8S run # WORKSPACE=${WORKSPACE} ./sriov_ib/sriov_ib_ci_stop.sh"
     exit $status
 }
 
@@ -199,6 +198,7 @@ function test_pods {
         return $status
      fi
 
+     echo ""
      echo "all tests succeeded!!"
 
      return $status
