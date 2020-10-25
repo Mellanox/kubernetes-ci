@@ -136,10 +136,7 @@ function patch_pod_cider_to_node {
 }
 
 function main {
-    echo "Working in $WORKSPACE"
-    mkdir -p $WORKSPACE
-    mkdir -p $LOGDIR
-    mkdir -p $ARTIFACTS
+    create_workspace
 
     echo "Get CPU architechture"
     export ARCH="amd"

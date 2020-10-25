@@ -14,6 +14,8 @@ function main {
 
     delete_pods
 
+    collect_pods_logs
+
     general_cleaning
 
     reset_vfs_guids

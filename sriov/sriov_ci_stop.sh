@@ -3,7 +3,7 @@
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
-export KUBECONFIG=${KUBECONFIG:-/var/run/kubernetes/admin.kubeconfig}
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 source ./common/clean_common.sh
 
@@ -13,6 +13,8 @@ function main {
     mkdir -p $ARTIFACTS
 
     delete_pods
+
+    collect_pods_logs
 
     general_cleaning
  

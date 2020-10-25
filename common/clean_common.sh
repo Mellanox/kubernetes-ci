@@ -122,6 +122,8 @@ function general_cleaning {
     delete_all_docker_images
 
     clean_tmp_workspaces
+
+    collect_services_logs
 }
 
 function load_core_drivers {
@@ -129,3 +131,65 @@ function load_core_drivers {
     modprobe ib_core
 }
 
+function collect_pods_logs {
+    if [[ -f "${LOGDIR}/start-time.log" ]];then
+        echo "Collecting all pods logs..."
+        kubectl get pods -A -o wide > ${LOGDIR}/pods-last-state.log
+	old_IFS=$IFS
+	IFS=$'\n'
+	for pod in $(kubectl get pods -A -o custom-columns=NAMESACE:.metadata.namespace,NAME:.metadata.name);do
+            get_pod_log "$pod"
+        done
+    else
+        echo ""
+        echo "No \"${LOGDIR}/start-time.log\", Assuming job did not start."
+        echo ""
+    fi
+    IFS=$old_IFS
+}
+
+function collect_services_logs {
+    if [[ -f "${LOGDIR}/start-time.log" ]];then
+        echo "Collecting Services Logs..."
+        get_service_log "kubelet"
+        get_service_log "docker"
+    else
+        echo ""
+        echo "No \"${LOGDIR}/start-time.log\", Assuming job did not start."
+        echo ""
+    fi
+}
+
+function get_pod_log {
+    pod_line="$1"
+    pod_namespace="$(awk '{print $1}' <<< ${pod_line})"
+    pod_name="$(awk '{print $2}' <<< ${pod_line})"
+
+    echo "Collecting $pod_name logs..."
+
+    kubectl logs -n "$pod_namespace" "$pod_name" > ${LOGDIR}/${pod_name}.log
+
+    if [[ -f ${LOGDIR}/${pod_name}.log ]];then
+        echo "Logs wrote to ${LOGDIR}/${pod_name}.log!"
+        echo ""
+    else
+        echo "${LOGDIR}/${pod_name}.log was not found, writting logs failed!"
+        echo ""
+    fi
+}
+
+function get_service_log {
+    service_name="$1"
+
+    echo "Collecting $service_name logs..."
+
+    sudo journalctl -o short-precise --since "$(cat ${LOGDIR}/start-time.log)" --unit $service_name > "${LOGDIR}/${service_name}.log"
+
+    if [[ -f ${LOGDIR}/${service_name}.log ]];then
+        echo "Logs wrote to ${LOGDIR}/${service_name}.log!"
+        echo ""
+    else
+        echo "${LOGDIR}/${service_name}.log was not found, writting logs failed!"
+        echo ""
+    fi
+}
