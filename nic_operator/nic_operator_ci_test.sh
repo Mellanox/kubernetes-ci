@@ -95,6 +95,10 @@ Testing ofed drivers ..."
     let status=status+$?
     verfiy_module ib_core
     let status=status+$?
+    verfiy_module mlx_compat
+    let status=status+$?
+    verfiy_module mlx5_ib
+    let status=status+$?
 
     if [[ "$status" == "0" ]]; then
         echo "Success!! all ofed modules are verified."
