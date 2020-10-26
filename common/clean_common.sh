@@ -3,7 +3,9 @@
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
-export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.con}
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
+
+source ./common/common_functions.sh
 
 function delete_pods {
     kubectl delete pods --all
@@ -192,4 +194,75 @@ function get_service_log {
         echo "${LOGDIR}/${service_name}.log was not found, writting logs failed!"
         echo ""
     fi
+}
+
+function delete_nic_operator_namespace {
+    local nic_operator_namespace_dir=$WORKSPACE/mellanox-network-operator/deploy/
+    local nic_operator_namespace_file=$nic_operator_namespace_dir/operator-ns.yaml
+
+    if [[ ! -f "$nic_operator_namespace_file" ]];then
+        echo "$nic_operator_namespace_file not found!!"
+        echo "Assuming CI did not start."
+        return 0
+    fi
+
+    for file in $(find $nic_operator_namespace_dir -type f -name *-ns.yaml);do
+        kubectl delete -f "$file"
+        sleep 30
+    done
+}
+
+function delete_nic_cluster_policies {
+    local nic_operator_crds_dir=$WORKSPACE/mellanox-network-operator/deploy/crds/
+    local nic_cluster_policy_file=$(find $nic_operator_crds_dir -type f -name *nicclusterpolicies_crd.yaml)
+
+    if [[ ! -f "$nic_cluster_policy_file" ]];then
+        echo "No $nic_cluster_policy_file found, assuming  CI did not start!"
+        return 0
+    fi
+
+    local nic_cluster_policy_name=$(yaml_read metadata.name "$nic_cluster_policy_file")
+    local resources_namespace=$(yaml_read metadata.name ${nic_operator_crds_dir}/../operator-resources-ns.yaml)
+
+    kubectl delete $nic_cluster_policy_name --all --wait=true
+
+    asure_resource_deleted "pods" "$resources_namespace"
+}
+
+function asure_resource_deleted {
+    local resource_type="$1"
+    local resource_name="$2"
+
+    echo "Waiting for $resource_name to be deleted ...."
+    let stop=$(date '+%s')+$TIMEOUT
+    d=$(date '+%s')
+    while [ $d -lt $stop ]; do
+       resource_state=$(kubectl get $resource_type -A | grep $resource_name)
+       if [[ -z "$resource_state" ]];then
+           echo "$resource_name was deleted successfuly!!"
+           sleep 10
+           return 0
+       fi
+       echo "$resource_name is not yet deleted, waiting..."
+       sleep $POLL_INTERVAL
+       d=$(date '+%s')
+    done
+
+    if [ $d -gt $stop ]; then
+        echo "ERROR: $resource_name was not deleted after $TIMEOUT seconds!!"
+        return 1
+    fi
+}
+
+function delete_nic_operator {
+    echo "Deleting the network operator..."
+    local local_status=0
+
+    delete_nic_cluster_policies
+    let local_status=$local_status+$?
+
+    delete_nic_operator_namespace
+    let local_status=$local_status+$?
+    
+    return $local_status
 }

@@ -16,6 +16,7 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
 source ./common/common_functions.sh
+source ./common/clean_common.sh
 
 test_pod_image='mellanox/rping-test'
 
@@ -229,6 +230,38 @@ function test_rdma_plugin {
     return $status
 }
 
+function test_deleting_network_operator {
+    echo ""
+    echo "Test Deleting Network Operator...."
+
+    local ofed_module_srcversion="$(cat /sys/module/mlx5_core/srcversion)"
+
+    delete_nic_operator
+
+    sleep 20
+
+    echo ""
+    echo "checking mlx5_fpga_tools presence..."
+    if [[ -n "$(lsmod | grep mlx5_fpga_tools)" ]];then
+        echo "ERROR: mlx5_fpga_tools is still loaded in the system!!!"
+        return 1
+    fi
+
+    echo ""
+    echo "Checking mlx5_core srcversion... "
+    modprobe mlx5_core
+    sleep 5
+    if [[ "$(cat /sys/module/mlx5_core/srcversion)" == "$ofed_module_srcversion" ]];then
+        echo "ERROR: inbox mlx5_core srcversion is the same as the OFED version!!"
+        echo "Assuming OFED modules are still loaded in the system...."
+        return 1
+    fi
+
+    echo ""
+    echo "Test Deleting Network Operator succeeded!"
+    return 0
+}
+
 function exit_code {
     rc="$1"
     echo "All logs $LOGDIR"
@@ -269,6 +302,13 @@ function main {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: RDMA device plugin testing Failed!"
+        exit_code $status
+    fi
+
+    test_deleting_network_operator
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Test Deleting Network Operator failed!"
         exit_code $status
     fi
     

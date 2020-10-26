@@ -8,12 +8,6 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 source ./common/clean_common.sh
 
-function delete_nic_operator_namespace {
-    nic_operator_namespace_file=$WORKSPACE/mellanox-network-operator/deploy/operator-ns.yaml
-    kubectl delete -f $nic_operator_namespace_file
-    sleep 20
-}
-
 function main {
     mkdir -p $WORKSPACE
     mkdir -p $LOGDIR
@@ -23,7 +17,7 @@ function main {
     
     collect_pods_logs
 
-    delete_nic_operator_namespace
+    delete_nic_operator
 
     general_cleaning
  
