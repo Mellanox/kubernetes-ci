@@ -8,8 +8,8 @@ The SRIOV project builds and deploy the following components:
 * [Multus](https://github.com/intel/multus-cni).
 * [Container networking plugins](https://github.com/containernetworking/plugins.git).
 * [Mellanox RDMA cni](https://github.com/Mellanox/rdma-cni).
-* [SRIOV network device plugin](https://github.com/intel/sriov-network-device-plugin).
-* [SRIOV cni](https://github.com/intel/sriov-cni). 
+* [SRIOV network device plugin](https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin).
+* [SRIOV cni](https://github.com/k8snetworkplumbingwg/sriov-cni). 
 
 ### Configurations
 In addition to the common configurations found at [README.md](./README.md), the sriov project uses the following configurations:
@@ -19,10 +19,10 @@ In addition to the common configurations found at [README.md](./README.md), the 
 |  RDMA_CNI_REPO | https://github.com/Mellanox/rdma-cni | RDMA cni repo to use |
 |  RDMA_CNI_BRANCH | master | RDMA cni branch to use |
 |  RDMA_CNI_PR | | RDMA cni pull request to pull, adding this will ignore RDMA_CNI_BRANCH |
-|  SRIOV_CNI_REPO | https://github.com/intel/sriov-cni | SRIOV cni repo to use |
+|  SRIOV_CNI_REPO | https://github.com/k8snetworkplumbingwg/sriov-cni | SRIOV cni repo to use |
 |  SRIOV_CNI_BRANCH | master | SRIOV cni branch to use |
 |  SRIOV_CNI_PR | '' | SRIOV cni pull request to pull,  adding this will ignore SRIOV_CNI_BRANCH |
-|  SRIOV_NETWORK_DEVICE_PLUGIN_REPO | https://github.com/intel/sriov-network-device-plugin | SRIOV network device plugin repo to use |
+|  SRIOV_NETWORK_DEVICE_PLUGIN_REPO | https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin | SRIOV network device plugin repo to use |
 |  SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH | master | SRIOV network device plugin branch to build |
 |  SRIOV_NETWORK_DEVICE_PLUGIN_PR-'' | SRIOV network device plugin pull request to pull, adding this will ignore SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH |
 |  MACVLAN_INTERFACE | eno1 | macvlan network master interface |

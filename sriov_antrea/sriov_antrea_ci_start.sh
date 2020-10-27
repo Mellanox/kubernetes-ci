@@ -11,7 +11,7 @@ export ANTREA_CNI_REPO=${ANTREA_CNI_REPO:-https://github.com/vmware-tanzu/antrea
 export ANTREA_CNI_BRANCH=${ANTREA_CNI_BRANCH:-master}
 export ANTREA_CNI_PR=${ANTREA_CNI_PR:-''}
 
-export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/intel/sriov-network-device-plugin}
+export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin}
 export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
 export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR-''}
 

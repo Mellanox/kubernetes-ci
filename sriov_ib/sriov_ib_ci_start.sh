@@ -15,7 +15,7 @@ export SRIOV_IB_CNI_REPO=${SRIOV_IB_CNI_REPO:-https://github.com/mellanox/ib-sri
 export SRIOV_IB_CNI_BRANCH=${SRIOV_IB_CNI_BRANCH:-master}
 export SRIOV_IB_CNI_PR=${SRIOV_IB_CNI_PR:-''}
 
-export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/intel/sriov-network-device-plugin}
+export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin}
 export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
 export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR-''}
 
