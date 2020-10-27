@@ -8,7 +8,7 @@ The SRIOV IB project builds and deploy the following components:
 * [Multus](https://github.com/intel/multus-cni).
 * [Container networking plugins](https://github.com/containernetworking/plugins.git).
 * [Mellanox IB Kubernetes](https://github.com/Mellanox/ib-kubernetes).
-* [SRIOV network device plugin](https://github.com/intel/sriov-network-device-plugin).
+* [SRIOV network device plugin](https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin).
 * [Mellanox IB SRIOV CNI](https://github.com/mellanox/ib-sriov-cni). 
 
 ### Configurations
@@ -22,7 +22,7 @@ In addition to the common configurations found at [README.md](./README.md), the 
 | SRIOV_IB_CNI_REPO | https://github.com/mellanox/ib-sriov-cni | IB SRIOV CNI repo to use |
 | SRIOV_IB_CNI_BRANCH | master | IB SRIOV project branch to build |
 | SRIOV_IB_CNI_PR | '' | IB SRIOV pull request to pull, adding this will ignore SRIOV_IB_CNI_BRANCH |
-| SRIOV_NETWORK_DEVICE_PLUGIN_REPO | https://github.com/intel/sriov-network-device-plugin | SRIOV network device plugin repo to use |
+| SRIOV_NETWORK_DEVICE_PLUGIN_REPO | https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin | SRIOV network device plugin repo to use |
 | SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH | master | SRIOV network device plugin branch to build |
 | SRIOV_NETWORK_DEVICE_PLUGIN_PR-'' | SRIOV network device plugin pull request to pull, adding this will ignore SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH |
 | MACVLAN_INTERFACE | eno1 | macvlan network master interface |

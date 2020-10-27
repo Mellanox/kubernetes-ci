@@ -11,11 +11,11 @@ export RDMA_CNI_REPO=${RDMA_CNI_REPO:-https://github.com/Mellanox/rdma-cni}
 export RDMA_CNI_BRANCH=${RDMA_CNI_BRANCH:-master}
 export RDMA_CNI_PR=${RDMA_CNI_PR:-''}
 
-export SRIOV_CNI_REPO=${SRIOV_CNI_REPO:-https://github.com/intel/sriov-cni}
+export SRIOV_CNI_REPO=${SRIOV_CNI_REPO:-https://github.com/k8snetworkplumbingwg/sriov-cni}
 export SRIOV_CNI_BRANCH=${SRIOV_CNI_BRANCH:-master}
 export SRIOV_CNI_PR=${SRIOV_CNI_PR:-''}
 
-export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/intel/sriov-network-device-plugin}
+export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin}
 export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
 export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR-''}
 
