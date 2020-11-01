@@ -40,58 +40,26 @@ export MACVLAN_NETWORK_DEFAULT_NAME='example-macvlan'
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-'/opt/cni/bin'}
 
+nic_operator_dir=$WORKSPACE/mellanox-network-operator/deploy
+
 source ./common/common_functions.sh
 source ./common/clean_common.sh
 
 test_pod_image='mellanox/rping-test'
 
 function nic_policy_create {
+    status=0
     cr_file="$1"
 
-    nic_operator_dir=$WORKSPACE/mellanox-network-operator/deploy
-
     kubectl create -f "$cr_file"
-    
-    cr_name=$(yaml_read metadata.name $cr_file)
-    if [[ -z "$cr_name" ]]; then
-        echo "Could not get the name of the example nicpolicy in $cr_file !!!"
-        return 1
-    fi
- 
-    operator_namespace=$(yaml_read metadata.name $nic_operator_dir/operator-ns.yaml)
-    if [[ -z "$operator_namespace" ]]; then
-        echo "Could not find operatore name space in $nic_operator_dir/operator-ns.yaml !!!"
-        return 1
-    fi
 
-    nicpolicy_crd_name=$(yaml_read metadata.name $nic_operator_dir/crds/mellanox.com_nicclusterpolicies_crd.yaml)
-    if [[ -z "$nicpolicy_crd_name" ]]; then
-        echo "Could not find the CRD name in $nic_operator_dir/crds/mellanox.com_nicclusterpolicies_crd.yaml !!!"
-        return 1
+    wait_nic_policy_state "$cr_file" "ready"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $cr_file!"
+        return $status
     fi
-    
-    cr_status=$(get_nic_policy_state $nicpolicy_crd_name $operator_namespace $cr_name)
-    let stop=$(date '+%s')+$TIMEOUT
-    d=$(date '+%s')
-    while [ $d -lt $stop ]; do
-        echo "Waiting for $cr_name to become ready"
-        cr_status=$(get_nic_policy_state $nicpolicy_crd_name $operator_namespace $cr_name)
-        if [ "$cr_status" == "ready" ]; then
-	    echo "$cr_name is Ready!
-"
-            return 0
-        elif [ "$cr_status" == "UnexpectedAdmissionError" ]; then
-            kubectl delete -f $cr_file
-            sleep ${POLL_INTERVAL}
-            kubectl create -f $cr_file
-        fi
-        kubectl get "$nicpolicy_crd_name" -n "$operator_namespace" "$cr_name"
-        kubectl describe "$nicpolicy_crd_name" -n "$operator_namespace" "$cr_name" 
-        sleep ${POLL_INTERVAL}
-        d=$(date '+%s')
-    done
-    echo "Error $cr_name is not up"
-    return 1
+    return 0
 }
 
 function get_nic_policy_state {
@@ -99,7 +67,7 @@ function get_nic_policy_state {
     local policy_namespace=$2
     local resource_name=$3
 
-    kubectl get "$resource_definition_name" -n "$policy_namespace" "$resource_name" -o json | grep '"state"' | cut -d: -f2 | tr -d ' "' | tail -n 1
+    kubectl get "$resource_definition_name" -n "$policy_namespace" "$resource_name" -o yaml | yq r - status.state
 }
 
 function test_ofed_drivers {
@@ -511,7 +479,110 @@ function test_secondary_network {
         return $status
     fi
     return 0
+
 }
+
+function test_probes {
+    status=0
+    local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    local modules_list="mlx5_fpga_tools mlx5_ib mlx5_core"
+
+    echo "Testing Probes..."
+    echo "Unloading ofed modules..."
+    echo ""
+    for module in $modules_list;do
+        sudo rmmod $module
+    done
+
+    wait_nic_policy_state "$cr_file" "notReady"
+    if [[ "$?" != "0" ]];then
+        return 1
+    fi
+
+    wait_nic_policy_state "$cr_file" "ready"
+    if [[ "$?" != "0" ]];then
+        return 1
+    fi
+
+    sleep 10
+    for module in $modules_list;do
+        if [[ -z "$(lsmod | grep $module)" ]];then
+            echo "ERROR: $module is not loaded again!!!"
+            return 1
+        fi
+    done
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete ofed-rdma-nic-cluster-policy.yaml!"
+        return $status
+    fi
+
+    echo "Probes test success!!!"
+    echo ""
+    return 0
+}
+
+
+function wait_nic_policy_state {
+    local local_cr_file="$1"
+    local target_state="$2"
+
+    local cr_name=$(yaml_read metadata.name $local_cr_file)
+    if [[ -z "$cr_name" ]]; then
+        echo "Could not get the name of the example nicpolicy in $local_cr_file !!!"
+        return 1
+    fi
+
+    local operator_namespace=$(yaml_read metadata.name $nic_operator_dir/operator-ns.yaml)
+    if [[ -z "$operator_namespace" ]]; then
+        echo "Could not find operatore name space in $nic_operator_dir/operator-ns.yaml !!!"
+        return 1
+    fi
+
+    local nicpolicy_crd_name=$(yaml_read metadata.name $nic_operator_dir/crds/mellanox.com_nicclusterpolicies_crd.yaml)
+    if [[ -z "$nicpolicy_crd_name" ]]; then
+        echo "Could not find the CRD name in $local_nic_operator_dir/crds/mellanox.com_nicclusterpolicies_crd.yaml !!!"
+        return 1
+    fi
+
+    let stop=$(date '+%s')+$TIMEOUT
+    local d=$(date '+%s')
+    while [ $d -lt $stop ]; do
+        echo "Waiting for $cr_name to become $target_state"
+        cr_status=$(get_nic_policy_state $nicpolicy_crd_name $operator_namespace $cr_name)
+        if [ "$cr_status" == "$target_state" ]; then
+            echo "$cr_name is $target_state!
+"
+            return 0
+        elif [ "$cr_status" == "UnexpectedAdmissionError" ]; then
+            kubectl delete -f $cr_file
+            sleep ${POLL_INTERVAL}
+            kubectl create -f $cr_file
+        fi
+        kubectl get "$nicpolicy_crd_name" -n "$operator_namespace" "$cr_name"
+        kubectl describe "$nicpolicy_crd_name" -n "$operator_namespace" "$cr_name"
+        sleep ${POLL_INTERVAL}
+        d=$(date '+%s')
+    done
+    echo "ERROR: $cr_name did not become $target_state after $TIMEOUT have passed!"
+    exit 1
+}
+
 
 function exit_code {
     rc="$1"
@@ -548,6 +619,13 @@ function main {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: Testing deploying OFED and RDMA shared device plugin failed!!"
+        exit_code $status
+    fi
+
+    test_probes
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Probes test failed!"
         exit_code $status
     fi
 
