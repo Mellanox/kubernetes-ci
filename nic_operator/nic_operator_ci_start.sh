@@ -101,8 +101,11 @@ function deploy_operator_components {
     kubectl create -f role_binding.yaml
     let status=status+$?
 
-    kubectl create -f crds/mellanox.com_nicclusterpolicies_crd.yaml
-    let status=status+$?
+    for file in $(find ./crds/ -type f -name *_crd.yaml);do
+        kubectl apply -f "$file"
+        let status=status+$?
+        sleep 2
+    done
 
     kubectl create -f operator.yaml
     let status=status+$?
