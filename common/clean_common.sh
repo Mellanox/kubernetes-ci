@@ -129,8 +129,8 @@ function general_cleaning {
 }
 
 function load_core_drivers {
-    modprobe mlx5_core
-    modprobe ib_core
+    sudo modprobe mlx5_core
+    sudo modprobe ib_core
 }
 
 function collect_pods_logs {

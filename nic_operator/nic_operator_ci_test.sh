@@ -247,6 +247,11 @@ function test_rdma_plugin {
         echo "Error: error testing the rping between $test_pod_1_name $test_pod_2_name!"
         return $status
     fi
+
+    echo "Deleting test pods..."
+    kubectl delete -f ${ARTIFACTS}/${test_pod_1_name}.yaml
+    kubectl delete -f ${ARTIFACTS}/${test_pod_2_name}.yaml
+    sleep 5
     
     return $status
 }
@@ -259,7 +264,7 @@ function test_deleting_network_operator {
     local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_images_specs "ofedDriver" "$sample_file"
+    configure_ofed
 
     nic_policy_create "$sample_file"
     let status=status+$?
@@ -298,6 +303,45 @@ function test_deleting_network_operator {
     return 0
 }
 
+function test_rdma_only {
+    status=0
+
+    load_core_drivers
+    sleep 2
+
+    load_rdma_modules
+    sleep 2
+
+    local sample_file="$ARTIFACTS"/rdma-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_device_plugin "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    test_rdma_plugin
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: RDMA device plugin testing Failed!"
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+    return 0
+}
+
 function configure_common {
     local file_name="$1"
     local nic_policy_name=${2:-"$NIC_CLUSTER_POLICY_DEFAULT_NAME"}
@@ -310,6 +354,14 @@ function configure_common {
     yaml_write 'kind' 'NicClusterPolicy' "$file_name"
     yaml_write 'metadata.name' "$nic_policy_name" "$file_name"
     yaml_write 'metadata.namespace' 'mlnx-network-operator' "$file_name"
+}
+
+function configure_ofed {
+    local file_name="$1"
+
+    modprobe -r rpcrdma
+
+    configure_images_specs "ofedDriver" "$sample_file"
 }
 
 function configure_device_plugin {
@@ -370,7 +422,7 @@ function test_ofed_only {
     local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_images_specs "ofedDriver" "$sample_file"
+    configure_ofed
 
     nic_policy_create "$sample_file"
     let status=status+$?
@@ -401,7 +453,7 @@ function test_ofed_and_rdma {
     local sample_file="$ARTIFACTS"/ofed-rdma-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_images_specs "ofedDriver" "$sample_file"
+    configure_ofed
     configure_device_plugin "$sample_file"
 
     nic_policy_create "$sample_file"
@@ -544,6 +596,14 @@ function main {
     
     sleep 10
 
+    test_rdma_only
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Testing deploying RDMA shared device plugin failed!!"
+        exit_code $status
+    fi
+
+
     test_ofed_and_rdma
     let status=status+$?
     if [ "$status" != 0 ]; then
@@ -564,7 +624,7 @@ function main {
         echo "Error: Test Deleting Network Operator failed!"
         exit_code $status
     fi
-    
+
     popd
     
     echo ""

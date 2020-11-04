@@ -301,7 +301,7 @@ function load_rdma_modules {
     sleep 5
 
     if [[ -n "$(lsmod | grep rdma_ucm)" ]]; then
-        modprobe -r rdma_ucm
+        sudo modprobe -r rdma_ucm
         if [ "$?" != "0" ]; then
             echo "Warning: faild to remove the rdma_ucm module"
         fi
@@ -309,22 +309,29 @@ function load_rdma_modules {
     fi
 
     if [[ -n "$(lsmod | grep rdma_cm)" ]]; then
-        modprobe -r rdma_cm
+        sudo modprobe -r rdma_cm
         if [ "$?" != "0" ]; then
             echo "Warning: Failed to remove rdma_cm module"
         fi
         sleep 2
     fi
-    modprobe rdma_cm
+    sudo modprobe rdma_cm
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Failed to load rdma_cm module"
         return $status
     fi
-    modprobe rdma_ucm
+    sudo modprobe rdma_ucm
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Failed to load rdma_ucm module"
+        return $status
+    fi
+
+    sudo modprobe ib_umad
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to load ib_umad module"
         return $status
     fi
 
