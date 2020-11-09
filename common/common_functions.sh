@@ -408,7 +408,7 @@ function yaml_write {
     local file=$3
 
     echo "Changing the value of \"$key\" in $file to \"$new_value\""
-    yq w -i "$file" "$key" "$new_value"
+    yq w -i "$file" "$key" -- "$new_value"
 }
 
 function yaml_read {
@@ -437,6 +437,13 @@ function wait_pod_state {
     return 1
 }
 
+function check_resource_state {
+    local resource_kind="$1"
+    local resource_name="$2"
+    local state="$3"
+
+    kubectl get $resource_kind -A | grep $resource_name | grep -i $state
+}
 
 function deploy_k8s_with_multus {
 
@@ -557,4 +564,94 @@ data:
       ]
     }
 EOF
+}
+
+function configure_images_specs {
+    local key="$1"
+    local file="$2"
+
+    local upper_case_key="$(sed 's/[A-Z]/\.\0/g' <<< $key | tr "." "_" | tr '[:lower:]' '[:upper:]')"
+
+    local image_variable="${upper_case_key}_IMAGE"
+    local repo_variable="${upper_case_key}_REPO"
+    local version_variable="${upper_case_key}_VERSION"
+
+    yaml_write "spec.${key}.image" "${!image_variable}" "$file"
+    yaml_write "spec.${key}.repository" "${!repo_variable}" "$file"
+    yaml_write "spec.${key}.version" "${!version_variable}" "$file"
+}
+
+function create_test_pod {
+    local pod_name="${1:-test-pod-$$}"
+    local file="${2:-${ARTIFACTS}/${pod_name}.yaml}"
+    local pod_image=${3:-'mellanox/rping-test'}
+    local pod_network=${4:-'macvlan-net'}
+
+    if [[ ! -f "$file" ]];then
+        touch "$file"
+    fi
+
+    yaml_write "apiVersion" "v1" "$file"
+    yaml_write "kind" "Pod" "$file"
+    yaml_write "metadata.name" "${pod_name}" "$file"
+    yaml_write "metadata.annotations[k8s.v1.cni.cncf.io/networks]" "${pod_network}" "$file"
+
+    yaml_write spec.containers[0].name "test-pod" $file
+    yaml_write spec.containers[0].image "$pod_image" $file
+    yaml_write spec.containers[0].imagePullPolicy IfNotPresent $file
+    yaml_write spec.containers[0].securityContext.capabilities.add[0] "IPC_LOCK" $file
+    yaml_write spec.containers[0].command[0] "/bin/bash" $file
+    yaml_write spec.containers[0].args[0] "-c" $file
+    yaml_write spec.containers[0].args[1] "--" $file
+    yaml_write spec.containers[0].args[2] "while true; do sleep 300000; done;" $file
+
+    kubectl create -f $file
+
+    wait_pod_state $pod_name 'Running'
+    if [[ "$?" != 0 ]];then
+        echo "Error Running $pod_name!!"
+        return 1
+    fi
+
+    echo "$pod_name is now running."
+    sleep 5
+    return 0
+}
+
+function test_pods_connectivity {
+    local status=0
+    local POD_NAME_1=$1
+    local POD_NAME_2=$2
+
+    if [[ -z "$(check_resource_state "pod" "$POD_NAME_1" "Running" )" ]]; then
+        echo "Error: pod $POD_NAME_1 is not running!"
+        return 1
+    fi
+
+    if [[ -z "$(check_resource_state "pod" "$POD_NAME_2" "Running" )" ]]; then
+        echo "Error: pod $POD_NAME_2 is not running!"
+        return 1
+    fi
+
+    local ip_1=$(/usr/local/bin/kubectl exec -t ${POD_NAME_1} -- ifconfig net1|grep inet|awk '{print $2}')
+    /usr/local/bin/kubectl exec -i ${POD_NAME_1} -- ifconfig net1
+    echo "${POD_NAME_1} has ip ${ip_1}"
+
+    local ip_2=$(/usr/local/bin/kubectl exec -t ${POD_NAME_2} -- ifconfig net1|grep inet|awk '{print $2}')
+    /usr/local/bin/kubectl exec -i ${POD_NAME_2} -- ifconfig net1
+    echo "${POD_NAME_2} has ip ${ip_2}"
+
+    /usr/local/bin/kubectl exec -t ${POD_NAME_2} -- bash -c "ping $ip_1 -c 1 >/dev/null 2>&1"
+    let status=status+$?
+
+    if [ "$status" != 0 ]; then
+        echo "Error: There is no connectivity between the pods"
+        return $status
+    fi
+
+    echo ""
+    echo "Connectivity test suceeded!"
+    echo ""
+
+    return $status
 }

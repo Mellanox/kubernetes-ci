@@ -15,15 +15,30 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
-export OFED_IMAGE=${OFED_IMAGE:-'ofed-driver'}
-export OFED_REPO=${OFED_REPO:-'mellanox'}
-export OFED_VERSION=${OFED_VERSION:-'5.0-2.1.8.0'}
+export OFED_DRIVER_IMAGE=${OFED_DRIVER_IMAGE:-'ofed-driver'}
+export OFED_DRIVER_REPO=${OFED_DRIVER_REPO:-'mellanox'}
+export OFED_DRIVER_VERSION=${OFED_DRIVER_VERSION:-'5.0-2.1.8.0'}
 
 export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-'k8s-rdma-shared-dev-plugin'}
 export DEVICE_PLUGIN_REPO=${DEVICE_PLUGIN_REPO:-'mellanox'}
 export DEVICE_PLUGIN_VERSION=${DEVICE_PLUGIN_VERSION:-'latest'}
 
+export SECONDARY_NETWORK_MULTUS_IMAGE=${SECONDARY_NETWORK_MULTUS_IMAGE:-'multus'}
+export SECONDARY_NETWORK_MULTUS_REPO=${SECONDARY_NETWORK_MULTUS_REPO:-'nfvpe'}
+export SECONDARY_NETWORK_MULTUS_VERSION=${SECONDARY_NETWORK_MULTUS_VERSION:-'v3.6'}
+
+export SECONDARY_NETWORK_CNI_PLUGINS_IMAGE=${SECONDARY_NETWORK_CNI_PLUGINS_IMAGE:-'containernetworking-plugins'}
+export SECONDARY_NETWORK_CNI_PLUGINS_REPO=${SECONDARY_NETWORK_CNI_PLUGINS_REPO:-'mellanox'}
+export SECONDARY_NETWORK_CNI_PLUGINS_VERSION=${SECONDARY_NETWORK_CNI_PLUGINS_VERSION:-'v0.8.7'}
+
+export SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE=${SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE:-'whereabouts'}
+export SECONDARY_NETWORK_IPAM_PLUGIN_REPO=${SECONDARY_NETWORK_IPAM_PLUGIN_REPO:-'dougbtv'}
+export SECONDARY_NETWORK_IPAM_PLUGIN_VERSION=${SECONDARY_NETWORK_IPAM_PLUGIN_VERSION:-'latest'}
+
 export NIC_CLUSTER_POLICY_DEFAULT_NAME='nic-cluster-policy'
+export MACVLAN_NETWORK_DEFAULT_NAME='example-macvlan'
+
+export CNI_BIN_DIR=${CNI_BIN_DIR:-'/opt/cni/bin'}
 
 source ./common/common_functions.sh
 source ./common/clean_common.sh
@@ -244,7 +259,7 @@ function test_deleting_network_operator {
     local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_ofed "$sample_file"
+    configure_images_specs "ofedDriver" "$sample_file"
 
     nic_policy_create "$sample_file"
     let status=status+$?
@@ -297,21 +312,11 @@ function configure_common {
     yaml_write 'metadata.namespace' 'mlnx-network-operator' "$file_name"
 }
 
-function configure_ofed {
-    local file_name="$1"
-
-    yaml_write spec.ofedDriver.image "$OFED_IMAGE" "$file_name"
-    yaml_write spec.ofedDriver.repository "$OFED_REPO" "$file_name"
-    yaml_write spec.ofedDriver.version "$OFED_VERSION" "$file_name"
-}
-
 function configure_device_plugin {
     local file_name="$1"
     local rdma_resource_name=${2:-'hca_shared_devices_a'}
 
-    yaml_write spec.devicePlugin.image "$DEVICE_PLUGIN_IMAGE" "$file_name"
-    yaml_write spec.devicePlugin.repository "$DEVICE_PLUGIN_REPO" "$file_name"
-    yaml_write spec.devicePlugin.version "$DEVICE_PLUGIN_VERSION" "$file_name"
+    configure_images_specs "devicePlugin" "$file_name"
 
     yaml_write spec.devicePlugin.config "\
 {
@@ -324,12 +329,48 @@ function configure_device_plugin {
 " "$file_name"
 }
 
+function configure_macvlan_custom_resource {
+    local file_name="$1"
+
+    if [[ ! -f "$file_name" ]];then
+        touch "$file_name"
+    fi
+
+    yaml_write "apiVersion" "mellanox.com/v1alpha1" "$file_name"
+    yaml_write "kind" "MacvlanNetwork" "$file_name"
+    yaml_write "metadata.name" "$MACVLAN_NETWORK_DEFAULT_NAME" "$file_name"
+
+    yaml_write "spec.networkNamespace" "default" "$file_name"
+    yaml_write "spec.master" "$SRIOV_INTERFACE" "$file_name"
+    yaml_write "spec.mode" "bridge" "$file_name"
+    yaml_write "spec.mtu" "1500" "$file_name"
+
+    yaml_write "spec.ipam" "\
+{
+  \"type\": \"whereabouts\",
+  \"datastore\": \"kubernetes\",
+  \"kubernetes\": {
+    \"kubeconfig\": \"/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig\"
+  },
+  \"range\": \"192.168.2.225/28\",
+  \"exclude\": [
+    \"192.168.2.229/30\",
+    \"192.168.2.236/32\"
+  ],
+  \"log_file\" : \"/var/log/whereabouts.log\",
+  \"log_level\" : \"info\",
+  \"gateway\": \"192.168.2.1\"
+}
+" "$file_name"
+
+}
+
 function test_ofed_only {
     status=0
     local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_ofed "$sample_file"
+    configure_images_specs "ofedDriver" "$sample_file"
 
     nic_policy_create "$sample_file"
     let status=status+$?
@@ -360,7 +401,7 @@ function test_ofed_and_rdma {
     local sample_file="$ARTIFACTS"/ofed-rdma-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_ofed "$sample_file"
+    configure_images_specs "ofedDriver" "$sample_file"
     configure_device_plugin "$sample_file"
 
     nic_policy_create "$sample_file"
@@ -392,6 +433,84 @@ function test_ofed_and_rdma {
         echo "Error: Couldn't delete ofed-rdma-nic-cluster-policy.yaml!"
         return $status
     fi
+}
+
+function test_secondary_network {
+    status=0
+    local sample_file="$ARTIFACTS"/seconday-network-nic-cluster-policy.yaml
+    local multus_file="$WORKSPACE/multus-cni/images/multus-daemonset.yml"
+
+    echo ""
+    echo "Testing Secondary networks..."
+
+    if [[ -f "$multus_file" ]];then
+        kubectl delete -f "$multus_file"
+    fi
+
+    sudo rm -f "${CNI_BIN_DIR}/macvlan"
+    sudo rm -f "${CNI_BIN_DIR}/multus"
+    sudo rm -f "${CNI_BIN_DIR}/whereabouts"
+
+    kubectl create -f $WORKSPACE/mellanox-network-operator/deploy/crds/k8s.cni.cncf.io_networkattachmentdefinitions_crd.yaml
+
+    kubectl label node $(kubectl get nodes -o name | cut -d'/' -f 2) node-role.kubernetes.io/master-
+
+    configure_common "$sample_file"
+    configure_images_specs "secondaryNetwork.multus" "$sample_file"
+    configure_images_specs "secondaryNetwork.cniPlugins" "$sample_file"
+    configure_images_specs "secondaryNetwork.ipamPlugin" "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    local macvlan_sample_file="$ARTIFACTS"/example-macvlan-cr.yaml
+
+    configure_macvlan_custom_resource "$macvlan_sample_file"
+    kubectl create -f "$macvlan_sample_file"
+
+    local test_pod_1_name="secondary-network-test-pod-1"
+    local test_pod_2_name="secondary-network-test-pod-2"
+
+    create_test_pod "$test_pod_1_name" "$ARTIFACTS"/"$test_pod_1_name".yaml "" "$MACVLAN_NETWORK_DEFAULT_NAME"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $test_pod_1_name!"
+        return $status
+    fi
+
+    create_test_pod "$test_pod_2_name" "$ARTIFACTS"/"$test_pod_2_name".yaml "" "$MACVLAN_NETWORK_DEFAULT_NAME"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $test_pod_2_name!"
+        return $status
+    fi
+
+    test_pods_connectivity "$test_pod_1_name" "$test_pod_2_name"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Pods failed the connectivity test!!!"
+        return $status
+    fi
+
+    echo ""
+    echo "Secondary network test Succeeded!!!"
+    echo ""
+
+    kubectl delete pods --all
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+    return 0
 }
 
 function exit_code {
@@ -429,6 +548,13 @@ function main {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: Testing deploying OFED and RDMA shared device plugin failed!!"
+        exit_code $status
+    fi
+
+    test_secondary_network
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Testing secondary network failed!!"
         exit_code $status
     fi
 
