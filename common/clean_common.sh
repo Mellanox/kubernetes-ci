@@ -129,8 +129,8 @@ function general_cleaning {
 }
 
 function load_core_drivers {
-    modprobe mlx5_core
-    modprobe ib_core
+    sudo modprobe mlx5_core
+    sudo modprobe ib_core
 }
 
 function collect_pods_logs {
@@ -227,6 +227,9 @@ function delete_nic_cluster_policies {
     kubectl delete $nic_cluster_policy_name --all --wait=true
 
     asure_resource_deleted "pods" "$resources_namespace"
+
+	    load_core_drivers
+    sleep 5
 }
 
 function asure_resource_deleted {
