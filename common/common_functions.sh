@@ -28,6 +28,9 @@ export POD_CIDER=${POD_CIDER:-'192.168.0.0/16'}
 export SERVICE_CIDER=${SERVICE_CIDER:-'172.0.0.0/16'}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
+export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
+export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
+
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
 # generate random network
@@ -197,7 +200,7 @@ network_plugins_install(){
         return $status
     fi
 
-    \cp bin/* $CNI_BIN_DIR/
+    cp bin/* $CNI_BIN_DIR/
     popd
 }
 
@@ -231,7 +234,7 @@ multus_install(){
         echo "Failed to build multus!!"
         return $status
     fi
-    cp bin/multus /opt/cni/bin/
+    cp bin/multus $CNI_BIN_DIR
 
     git log -p -1 > $ARTIFACTS/multus-cni-git.txt
     popd
