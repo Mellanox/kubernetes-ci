@@ -126,11 +126,8 @@ function general_cleaning {
     clean_tmp_workspaces
 
     collect_services_logs
-}
 
-function load_core_drivers {
-    sudo modprobe mlx5_core
-    sudo modprobe ib_core
+    delete_cnis_bins_and_confs
 }
 
 function collect_pods_logs {
@@ -228,7 +225,7 @@ function delete_nic_cluster_policies {
 
     asure_resource_deleted "pods" "$resources_namespace"
 
-	    load_core_drivers
+    load_core_drivers
     sleep 5
 }
 
@@ -268,4 +265,9 @@ function delete_nic_operator {
     let local_status=$local_status+$?
     
     return $local_status
+}
+
+function delete_cnis_bins_and_confs {
+    rm -rf ${CNI_CONF_DIR}/*
+    rm -rf ${CNI_BIN_DIR}/*
 }
