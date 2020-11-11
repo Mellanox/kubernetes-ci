@@ -18,7 +18,7 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export KERNEL_VERSION=${KERNEL_VERSION:-4.15.0-109-generic}
 export OS_DISTRO=${OS_DISTRO:-ubuntu}
-export OS_VERSION=${OS_VERSION:-18.04}
+export OS_VERSION=${OS_VERSION:-20.04}
 
 source ./common/common_functions.sh
 
