@@ -93,6 +93,12 @@ EOF
         git checkout ${ANTREA_CNI_BRANCH}
     fi
     make build
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build ${ANTREA_CNI_REPO}!!!"
+        return $status
+    fi
+
     if [[ -z "$(grep hw-offload $WORKSPACE/antrea/build/yamls/antrea.yml)" ]];then
         sed -i '/start_ovs/a\        - --hw-offload' $WORKSPACE/antrea/build/yamls/antrea.yml
     fi
