@@ -25,6 +25,8 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 export VFS_NUM=${VFS_NUM:-4}
 
+antrea_scm_dir="/jenkins/workspace/antrea_ci/PR/${ANTREA_CNI_PR}"
+
 function download_and_build {
     status=0
     if [ "$RECLONE" != true ] ; then
@@ -63,10 +65,26 @@ data:
 EOF
 
     cp /etc/pcidp/config.json $ARTIFACTS
-        
-    build_github_project "antrea-cni" "export VERSION=latest && make build"
+    
+    echo "Download Antrea components"
+    rm -rf $WORKSPACE/antrea-cni
 
-    let status=status+$?
+    if test ${ANTREA_CNI_PR}; then
+        if [[ ! -d "$antrea_scm_dir" ]];then
+            echo "ERROR: No directory found at $antrea_scm_dir!!"
+            return 1
+        fi
+        cp -rf "$antrea_scm_dir" $WORKSPACE/antrea-cni
+        pushd $WORKSPACE/antrea-cni
+        
+        VERSION=latest make build
+        let status=status+$?
+        popd
+    else
+        build_github_project "antrea-cni" "export VERSION=latest && make build"
+        let status=status+$?
+    fi
+
     if [ "$status" != 0 ]; then
         echo "ERROR: Failed to build the antrea-cni project!"
         return $status
@@ -80,7 +98,7 @@ EOF
         sed -i '/start_ovs/a\        - --hw-offload' $WORKSPACE/antrea-cni/build/yamls/antrea.yml
     fi
 
-    cat > $ARTIFACTS/antrea-crd.yaml <<EOF
+    cat > $ARTIFACTS/antrea-net.yaml <<EOF
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
@@ -148,7 +166,6 @@ if [ $? -ne 0 ]; then
     echo "Failed to download and build components"
     exit 1
 fi
-kubectl patch node "$(kubectl get nodes -o name | head -n 1 | cut -d / -f 2)" -p '{"spec":{"podCIDR":"192.169.50.0/24"}}' 
 
 pushd $WORKSPACE/multus-cni 
 ./build
@@ -158,21 +175,19 @@ popd
 echo " {\"cniVersion\": \"0.4.0\", \"name\": \"multus-cni-network\", \"type\": \"multus\", \"logLevel\": \"debug\", \"logFile\": \"/var/log/multus.log\", \"kubeconfig\": \"$KUBECONFIG\", \"clusterNetwork\": \"sriov-antrea-net\" }"\
        	> /etc/cni/net.d/00-multus.conf
 
-kubectl create -f $ARTIFACTS/antrea-crd.yaml
+kubectl create -f $ARTIFACTS/antrea-net.yaml
 
 kubectl create -f $ARTIFACTS/configMap.yaml
 kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
 
-
 kubectl create -f $WORKSPACE/antrea-cni/build/yamls/antrea.yml
 
-cp $ARTIFACTS/antrea-crd.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
-screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
+cp $ARTIFACTS/antrea-net.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"
 echo "All confs $ARTIFACTS"
 
 echo "Setup is up and running. Run following to start tests:"
-echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./sriov_antrea_test.sh"
+echo "# WORKSPACE=$WORKSPACE NETWORK=$NETWORK ./sriov_antrea/sriov_antrea_ci_test.sh"
 popd
 exit $status
