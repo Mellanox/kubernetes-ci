@@ -1,4 +1,5 @@
 #!/bin/bash
+
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
@@ -10,13 +11,21 @@ export POLL_INTERVAL=${POLL_INTERVAL:-10}
 export KUBERNETES_VERSION=${KUBERNETES_VERSION:-latest_stable}
 export KUBERNETES_BRANCH=${KUBERNETES_BRANCH:-master}
 
+export HARBOR_REGESTRY=${HARBOR_REGESTRY:-harbor.mellanox.com}
+export HARBOR_PROJECT=${HARBOR_PROJECT:-cloud-orchestration}
+
 export MULTUS_CNI_REPO=${MULTUS_CNI_REPO:-https://github.com/intel/multus-cni}
-export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-master}
-# ex MULTUS_CNI_PR=345 will checkout https://github.com/intel/multus-cni/pull/345
+export MULTUS_CNI_BRANCH=${MULTUS_CNI_BRANCH:-''}
 export MULTUS_CNI_PR=${MULTUS_CNI_PR:-''}
+export MULTUS_CNI_HARBOR_IMAGE=${MULTUS_CNI_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/multus}
+
+export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin}
+export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-''}
+export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR:-''}
+export SRIOV_NETWORK_DEVICE_PLUGIN_HARBOR_IMAGE=${SRIOV_NETWORK_DEVICE_PLUGIN_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/sriov-device-plugin}
 
 export PLUGINS_REPO=${PLUGINS_REPO:-https://github.com/containernetworking/plugins.git}
-export PLUGINS_BRANCH=${PLUGINS_BRANCH:-master}
+export PLUGINS_BRANCH=${PLUGINS_BRANCH:-''}
 export PLUGINS_BRANCH_PR=${PLUGINS_BRANCH_PR:-''}
 
 export GOPATH=${WORKSPACE}
@@ -206,38 +215,10 @@ network_plugins_install(){
 
 multus_install(){
     status=0
-    echo "Download $MULTUS_CNI_REPO"
-    rm -rf $WORKSPACE/multus-cni
-    git clone $MULTUS_CNI_REPO $WORKSPACE/multus-cni
-    pushd $WORKSPACE/multus-cni
-    # Check if part of Pull Request and
-    if test ${MULTUS_CNI_PR}; then
-        git fetch --tags --progress $MULTUS_CNI_REPO +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin pull/${MULTUS_CNI_PR}/head
-        let status=status+$?
-        if [ "$status" != 0 ]; then
-            echo "Failed to fetch multus pull request #${MULTUS_CNI_PR}!!"
-            return $status
-        fi
-    elif test $MULTUS_CNI_BRANCH; then
-        git checkout $MULTUS_CNI_BRANCH
-        let status=status+$?
-        if [ "$status" != 0 ]; then
-            echo "Failed to switch to multus branch ${MULTUS_CNI_BRANCH}!!"
-            return $status
-        fi
-    fi
+    build_github_project "multus-cni" "docker build -t $MULTUS_CNI_HARBOR_IMAGE ."
 
-    ./build
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to build multus!!"
-        return $status
-    fi
-    cp bin/multus $CNI_BIN_DIR
-
-    git log -p -1 > $ARTIFACTS/multus-cni-git.txt
-    popd
+    change_k8s_resource "DaemonSet" "kube-multus-ds-amd64" "spec.template.spec.containers[0].image"\
+        "$MULTUS_CNI_HARBOR_IMAGE" "$WORKSPACE/multus-cni/images/multus-daemonset.yml"
 }
 
 multus_configuration() {
@@ -352,7 +333,9 @@ function enable_rdma_mode {
 
 function deploy_calico {
     rm -rf /etc/cni/net.d/00*
-    wget https://docs.projectcalico.org/manifests/calico.yaml -P "$ARTIFACTS"/
+
+    cp ${SCRIPTS_DIR}/deploy/calico.yaml "$ARTIFACTS"/
+
     kubectl create -f "$ARTIFACTS"/calico.yaml
 
     wait_pod_state "calico-node" "Running"
@@ -529,29 +512,12 @@ function change_k8s_resource {
 }
 
 function deploy_sriov_device_plugin {
-    echo "Download ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO}"
-    rm -rf $WORKSPACE/sriov-network-device-plugin
-    git clone ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} $WORKSPACE/sriov-network-device-plugin
-    pushd $WORKSPACE/sriov-network-device-plugin
-    if test ${SRIOV_NETWORK_DEVICE_PLUGIN_PR}; then
-        git fetch --tags --progress ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin pull/${SRIOV_NETWORK_DEVICE_PLUGIN_PR}/head
-    elif test ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}; then
-        git checkout ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}
-    fi
-    git log -p -1 > $ARTIFACTS/sriov-network-device-plugin-git.txt
-    make build
-    let status=status+$?
-    make image
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to build ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}"
-        return $status
-    fi
+    build_github_project "sriov-network-device-plugin" \
+        "sed -i 's;^TAG=.*;TAG=$SRIOV_NETWORK_DEVICE_PLUGIN_HARBOR_IMAGE;' Makefile && make image"
 
-    \cp build/* $CNI_BIN_DIR/
-    change_k8s_resource "DaemonSet" "kube-sriov-device-plugin-amd64" "spec.template.spec.containers[0].image" "nfvpe/sriov-device-plugin:latest" "./deployments/k8s-v1.16/sriovdp-daemonset.yaml"
-    popd
+    change_k8s_resource "DaemonSet" "kube-sriov-device-plugin-amd64" "spec.template.spec.containers[0].image"\
+        "$SRIOV_NETWORK_DEVICE_PLUGIN_HARBOR_IMAGE" "$WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml"
+
     cat > $ARTIFACTS/configMap.yaml <<EOF
 apiVersion: v1
 kind: ConfigMap
@@ -594,7 +560,7 @@ function configure_images_specs {
 function create_test_pod {
     local pod_name="${1:-test-pod-$$}"
     local file="${2:-${ARTIFACTS}/${pod_name}.yaml}"
-    local pod_image=${3:-'mellanox/rping-test'}
+    local pod_image=${3:-'harbor.mellanox.com/cloud-orchestration/rping-test'}
     local pod_network=${4:-'macvlan-net'}
 
     if [[ ! -f "$file" ]];then
@@ -664,4 +630,78 @@ function test_pods_connectivity {
     echo ""
 
     return $status
+}
+
+function build_github_project {
+    local project_name="$1"
+    local image_build_command="${2:-make image}"
+
+    local status=0
+
+    if [[ -z "$project_name" ]];then
+        echo "ERROR: No project specified to build!"
+        return 1
+    fi
+
+    local upper_case_project_name="$(tr "-" "_" <<< $project_name | tr '[:lower:]' '[:upper:]')"
+
+    local repo_variable="${upper_case_project_name}_REPO"
+    local branch_variable="${upper_case_project_name}_BRANCH"
+    local pr_variable="${upper_case_project_name}_PR"
+    local harbor_image_variable="${upper_case_project_name}_HARBOR_IMAGE"
+
+    echo "Downloading ${!repo_variable}"
+    rm -rf "$WORKSPACE"/"$project_name"
+
+    git clone "${!repo_variable}" "$WORKSPACE"/"$project_name"
+
+    pushd $WORKSPACE/"$project_name"
+    # Check if part of Pull Request and
+    if test ${!pr_variable}; then
+        git fetch --tags --progress ${!repo_variable} +refs/pull/${!pr_variable}/*:refs/remotes/origin/pull-requests/${!pr_variable}/*
+        git checkout pull-requests/${!pr_variable}/head
+        let status=$status+$?
+        if [[ "$status" != "0" ]];then
+            echo "ERROR: Failed to checkout the $project_name pull request number ${!pr_variable}!"
+            return "$status"
+        fi
+        eval "$image_build_command"
+        let status=$status+$?
+    elif test ${!branch_variable}; then
+        git checkout ${!branch_variable}
+        let status=$status+$?
+        if [[ "$status" != "0" ]];then
+            echo "ERROR: Failed to checkout the $project_name branch ${!branch_variable}!"
+            return "$status"
+        fi
+        eval "$image_build_command"
+        let status=$status+$?
+    else
+        docker pull ${!harbor_image_variable}
+        let status=$status+$?
+    fi
+
+    git log -p -1 > $ARTIFACTS/${project_name}-git.txt
+
+    popd
+
+    if [[ "$status" != "0" ]];then
+        echo "ERROR: Failed to build the $project_name Project!"
+        return "$status"
+    fi
+
+    return $status
+}
+
+function change_image_name {
+    local old_image_name="$1"
+    local new_image_name="$2"
+
+    docker tag $old_image_name $new_image_name
+    if [[ "$?" != "0" ]];then
+        echo "ERROR: Failed to rename the image $old_image_name to $new_image_name"
+        return 1
+    fi
+
+    docker rmi $old_image_name
 }

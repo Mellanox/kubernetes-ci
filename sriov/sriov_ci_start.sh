@@ -1,5 +1,7 @@
 #!/bin/bash -x
 
+source ./common/common_functions.sh
+
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
@@ -8,16 +10,13 @@ export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export RDMA_CNI_REPO=${RDMA_CNI_REPO:-https://github.com/Mellanox/rdma-cni}
-export RDMA_CNI_BRANCH=${RDMA_CNI_BRANCH:-master}
+export RDMA_CNI_BRANCH=${RDMA_CNI_BRANCH:-''}
 export RDMA_CNI_PR=${RDMA_CNI_PR:-''}
+export RDMA_CNI_HARBOR_IMAGE=${RDMA_CNI_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/rdma-cni}
 
 export SRIOV_CNI_REPO=${SRIOV_CNI_REPO:-https://github.com/k8snetworkplumbingwg/sriov-cni}
-export SRIOV_CNI_BRANCH=${SRIOV_CNI_BRANCH:-master}
+export SRIOV_CNI_BRANCH=${SRIOV_CNI_BRANCH:-''}
 export SRIOV_CNI_PR=${SRIOV_CNI_PR:-''}
-
-export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin}
-export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
-export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR-''}
 
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
@@ -44,19 +43,15 @@ function download_and_build {
 
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
-    echo "Download $RDMA_CNI_REPO"
-    rm -rf $WORKSPACE/rdma-cni
-    git clone $RDMA_CNI_REPO $WORKSPACE/rdma-cni
-    pushd $WORKSPACE/rdma-cni
-    # Check if part of Pull Request and
-    if test ${RDMA_CNI_PR}; then
-        git fetch --tags --progress $RDMA_CNI_REPO +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin pull/${RDMA_CNI_PR}/head
-    elif test $RDMA_CNI_BRANCH; then
-        git checkout $RDMA_CNI_BRANCH
+    build_github_project "rdma-cni" "TAG=$RDMA_CNI_HARBOR_IMAGE make image"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "ERROR: Failed to build the rdma-cni project!"
+        return $status
     fi
+    change_image_name $RDMA_CNI_HARBOR_IMAGE mellanox/rdma-cni:latest
 
-    cat > deployment/rdma-crd.yaml <<EOF
+    cat > $ARTIFACTS/rdma-crd.yaml <<EOF
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
@@ -84,24 +79,6 @@ spec:
            }'
 EOF
 
-    git log -p -1 > $ARTIFACTS/rdma-cni-git.txt
-    make
-    let status=status+$?
-   
-    if [ "$status" != 0 ]; then
-        echo "Failed to build ${RDMA_CNI_REPO} ${RDMA_CNI_BRANCH}"
-        return $status
-    fi
-
-    make image
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to create rdma cni images."
-        return $status
-    fi
-    \cp build/* $CNI_BIN_DIR/
-    popd
-
     echo "Download $SRIOV_CNI_REPO"
     rm -rf $WORKSPACE/sriov-cni
     git clone ${SRIOV_CNI_REPO} $WORKSPACE/sriov-cni
@@ -119,16 +96,16 @@ EOF
         echo "Failed to build ${SRIOV_CNI_REPO} ${SRIOV_CNI_BRANCH}"
         return $status
     fi
-    make image
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to build ${SRIOV_CNI_REPO} ${SRIOV_CNI_BRANCH}"
-        return $status
-    fi
+
     \cp build/* $CNI_BIN_DIR/
     popd
 
     deploy_sriov_device_plugin
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "ERROR: Failed to build the sriov-network-device-plugin project!"
+        return $status
+    fi
 
     cp /etc/pcidp/config.json $ARTIFACTS
     return 0
@@ -153,8 +130,6 @@ function create_vfs {
 
 [ -d $CNI_CONF_DIR ] && rm -rf $CNI_CONF_DIR && mkdir -p $CNI_CONF_DIR
 [ -d $CNI_BIN_DIR ] && rm -rf $CNI_BIN_DIR && mkdir -p $CNI_BIN_DIR
-
-source ./common/common_functions.sh
 
 create_workspace
 
@@ -188,7 +163,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml
+kubectl create -f $ARTIFACTS/rdma-crd.yaml
 
 kubectl create -f $ARTIFACTS/configMap.yaml
 
@@ -196,7 +171,7 @@ kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/s
 
 kubectl create -f $WORKSPACE/rdma-cni/deployment/rdma-cni-daemonset.yaml
 
-cp $WORKSPACE/rdma-cni/deployment/rdma-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml $ARTIFACTS/
+cp $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"

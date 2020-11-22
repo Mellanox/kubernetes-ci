@@ -1,5 +1,7 @@
 #!/bin/bash -x
 
+source ./common/common_functions.sh
+
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
@@ -8,8 +10,9 @@ export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export NIC_OPERATOR_REPO=${NIC_OPERATOR_REPO:-https://github.com/Mellanox/network-operator}
-export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-master}
+export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-''}
 export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
+export NIC_OPERATOR_HARBOR_IMAGE=${NIC_OPERATOR_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/network-operator}
 
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
@@ -20,8 +23,6 @@ export KERNEL_VERSION=${KERNEL_VERSION:-4.15.0-109-generic}
 export OS_DISTRO=${OS_DISTRO:-ubuntu}
 export OS_VERSION=${OS_VERSION:-18.04}
 
-source ./common/common_functions.sh
-
 function download_and_build {
     status=0
     if [ "$RECLONE" != true ] ; then
@@ -30,33 +31,17 @@ function download_and_build {
 
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
-    echo "Download ${NIC_OPERATOR_REPO}"
-
-    rm -rf $WORKSPACE/mellanox-network-operator
-
-    git clone ${NIC_OPERATOR_REPO} $WORKSPACE/mellanox-network-operator
-    pushd $WORKSPACE/mellanox-network-operator
-    echo "applying the cluster role patches"
-
-    if test ${NIC_OPERATOR_PR}; then
-        git fetch --tags --progress ${NIC_OPERATOR_REPO} +refs/pull/${NIC_OPERATOR_PR}/*:refs/remotes/origin/pr/${NIC_OPERATOR_PR}/*
-	git pull origin pull/${NIC_OPERATOR_PR}/head
-    elif test ${NIC_OPERATOR_BRANCH}; then
-        git checkout ${NIC_OPERATOR_BRANCH}
-    fi
-
-    git log -p -1 > $ARTIFACTS/mellanox-network-operator-git.txt
-
-    make image
+    build_github_project "nic-operator" "TAG=$NIC_OPERATOR_HARBOR_IMAGE make image"
 
     let status=status+$?
+
     if [ "$status" != 0 ]; then
-        echo "Failed to build ${NIC_OPERATOR_REPO} Image"
+        echo "ERROR: Failed to build the nic-operator project!"
         return $status
     fi
 
-    popd
-    return 0
+    change_image_name $NIC_OPERATOR_HARBOR_IMAGE mellanox/network-operator
+    mv $WORKSPACE/nic-operator $WORKSPACE/mellanox-network-operator
 }
 
 function configure_namespace {
