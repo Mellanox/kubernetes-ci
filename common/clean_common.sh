@@ -121,7 +121,7 @@ function general_cleaning {
 
     delete_all_docker_container
 
-    delete_all_docker_images
+#    delete_all_docker_images
 
     clean_tmp_workspaces
 
