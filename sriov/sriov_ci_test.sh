@@ -28,7 +28,7 @@ metadata:
 spec:
   containers:
     - name: rdma-app
-      image: mmdh/rping-test
+      image: harbor.mellanox.com/cloud-orchestration/rping-test
       imagePullPolicy: IfNotPresent
       securityContext:
         capabilities:

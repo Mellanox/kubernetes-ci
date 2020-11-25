@@ -1,4 +1,7 @@
-#!/bin/bash -x
+#!/bin/bash
+set -x
+
+source ./common/common_functions.sh
 
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
@@ -8,16 +11,14 @@ export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export IB_K8S_REPO=${IB_K8S_REPO:-https://github.com/Mellanox/ib-kubernetes}
-export IB_K8S_BRANCH=${IB_K8S_BRANCH:-master}
+export IB_K8S_BRANCH=${IB_K8S_BRANCH:-''}
 export IB_K8S_PR=${IB_K8S_PR:-''}
+export IB_K8S_HARBOR_IMAGE=${IB_K8S_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/ib-kubernetes}
 
 export SRIOV_IB_CNI_REPO=${SRIOV_IB_CNI_REPO:-https://github.com/mellanox/ib-sriov-cni}
-export SRIOV_IB_CNI_BRANCH=${SRIOV_IB_CNI_BRANCH:-master}
+export SRIOV_IB_CNI_BRANCH=${SRIOV_IB_CNI_BRANCH:-''}
 export SRIOV_IB_CNI_PR=${SRIOV_IB_CNI_PR:-''}
-
-export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin}
-export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
-export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR-''}
+export SRIOV_IB_CNI_HARBOR_IMAGE=${SRIOV_IB_CNI_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/ib-sriov-cni}
 
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
@@ -44,19 +45,17 @@ function download_and_build {
 
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
-    echo "Download $IB_K8S_REPO"
-    rm -rf $WORKSPACE/ib-kubernetes
-    git clone $IB_K8S_REPO $WORKSPACE/ib-kubernetes
-    pushd $WORKSPACE/ib-kubernetes
-    # Check if part of Pull Request and
-    if test ${IB_K8S_PR}; then
-        git fetch --tags --progress $IB_K8S_REPO +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin pull/${IB_K8S_PR}/head
-    elif test $IB_K8S_BRANCH; then
-        git checkout $IB_K8S_BRANCH
-    fi
+    build_github_project "ib-k8s" "TAG=$IB_K8S_HARBOR_IMAGE make image"
+    sed -i 's/AEMON_SM_PLUGIN: \"ufm\"/AEMON_SM_PLUGIN: \"noop\"/' $WORKSPACE/ib-k8s/deployment/ib-kubernetes-configmap.yaml
 
-    cat > deployment/ib-sriov-crd.yaml <<EOF
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "ERROR: Failed to build the ib-kubernetes project!"
+        return $status
+    fi
+    change_image_name $IB_K8S_HARBOR_IMAGE mellanox/ib-kubernetes
+
+    cat > $WORKSPACE/ib-k8s/deployment/ib-sriov-crd.yaml <<EOF
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
@@ -81,45 +80,24 @@ spec:
 }]}'
 EOF
 
-    git log -p -1 > $ARTIFACTS/ib-kubernetes-git.txt
-
-    sed -i 's/AEMON_SM_PLUGIN: "ufm"/AEMON_SM_PLUGIN: "noop"/' deployment/ib-kubernetes-configmap.yaml
-
-    make image
+    build_github_project "sriov-ib-cni" "make build && TAG=$SRIOV_IB_CNI_HARBOR_IMAGE make image"
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Failed to create ib kubernetes images."
+        echo "ERROR: Failed to build the ib-sriov-cni project!"
         return $status
     fi
-    popd
 
-    echo "Download $SRIOV_IB_CNI_REPO"
-    rm -rf $WORKSPACE/ib-sriov-cni
-    git clone ${SRIOV_IB_CNI_REPO} $WORKSPACE/ib-sriov-cni
-    pushd $WORKSPACE/ib-sriov-cni
-    if test ${SRIOV_IB_CNI_PR}; then
-        git fetch --tags --progress ${SRIOV_IB_CNI_REPO} +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin pull/${SRIOV_IB_CNI_PR}/head
-    elif test ${SRIOV_IB_CNI_BRANCH}; then
-        git checkout ${SRIOV_IB_CNI_BRANCH}
-    fi
-    git log -p -1 > $ARTIFACTS/sriov-cni-git.txt
-    make build
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to build ${SRIOV_IB_CNI_REPO} ${SRIOV_IB_CNI_BRANCH}"
-        return $status
-    fi
-    make image
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to build ${SRIOV_IB_CNI_REPO} ${SRIOV_IB_CNI_BRANCH}"
-        return $status
-    fi
+    change_image_name $SRIOV_IB_CNI_HARBOR_IMAGE mellanox/ib-sriov-cni:latest
+    pushd $WORKSPACE/sriov-ib-cni
     \cp build/* $CNI_BIN_DIR/
     popd
 
     deploy_sriov_device_plugin
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "ERROR: Failed to build the sriov-network-device-plugin project!"
+        return $status
+    fi
 
     return 0
 }
@@ -152,8 +130,6 @@ if [ "$status" != 0 ]; then
     exit $status
 fi
 
-
-source ./common/common_functions.sh
 
 create_workspace 
 
@@ -189,14 +165,14 @@ fi
 
 kubectl label node $(kubectl get nodes -o name | cut -d'/' -f 2) node-role.kubernetes.io/master=
 
-kubectl create -f $WORKSPACE/ib-kubernetes/deployment/ib-kubernetes-configmap.yaml
-kubectl create -f $WORKSPACE/ib-kubernetes/deployment/ib-sriov-crd.yaml
+kubectl create -f $WORKSPACE/ib-k8s/deployment/ib-kubernetes-configmap.yaml
+kubectl create -f $WORKSPACE/ib-k8s/deployment/ib-sriov-crd.yaml
 
 kubectl create -f $ARTIFACTS/configMap.yaml
-kubectl create -f $WORKSPACE/ib-kubernetes/deployment/ib-kubernetes.yaml
+kubectl create -f $WORKSPACE/ib-k8s/deployment/ib-kubernetes.yaml
 kubectl create -f $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml
 
-cp $WORKSPACE/ib-kubernetes/deployment/ib-sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml $ARTIFACTS/
+cp $WORKSPACE/ib-k8s/deployment/ib-sriov-crd.yaml $WORKSPACE/sriov-network-device-plugin/deployments/k8s-v1.16/sriovdp-daemonset.yaml $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
 echo "All code in $WORKSPACE"
 echo "All logs $LOGDIR"

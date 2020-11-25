@@ -45,7 +45,7 @@ nic_operator_dir=$WORKSPACE/mellanox-network-operator/deploy
 source ./common/common_functions.sh
 source ./common/clean_common.sh
 
-test_pod_image='mellanox/rping-test'
+test_pod_image='harbor.mellanox.com/cloud-orchestration/rping-test'
 
 function nic_policy_create {
     status=0

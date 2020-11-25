@@ -17,7 +17,7 @@ export K8S_RDMA_SHARED_DEV_PLUGIN=${K8S_RDMA_SHARED_DEV_PLUGIN:-master}
 
 source ./common/common_functions.sh
 
-test_pod_image='mellanox/rping-test'
+test_pod_image='harbor.mellanox.com/cloud-orchestration/rping-test'
 
 function pod_create_server {
     POD_NAME=$1

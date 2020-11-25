@@ -27,7 +27,7 @@ metadata:
 spec:
   containers:
     - name: antrea-app
-      image: mmdh/rping-test
+      image: harbor.mellanox.com/cloud-orchestration/rping-test
       imagePullPolicy: IfNotPresent
       securityContext:
         capabilities:

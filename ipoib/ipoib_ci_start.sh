@@ -1,5 +1,7 @@
 #!/bin/bash -x
 
+source ./common/common_functions.sh
+
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
@@ -16,51 +18,36 @@ export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export IPOIB_CNI_REPO=${IPOIB_CNI_REPO:-https://github.com/Mellanox/ipoib-cni.git}
-export IPOIB_CNI_BRANCH=${IPOIB_CNI_BRANCH:-master}
+export IPOIB_CNI_BRANCH=${IPOIB_CNI_BRANCH:-''}
 export IPOIB_CNI_PR=${IPOIB_CNI_PR-''}
+export IPOIB_CNI_HARBOR_IMAGE=${IPOIB_CNI_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/ipoib-cni}
 
 export K8S_RDMA_SHARED_DEV_PLUGIN_REPO=${K8S_RDMA_SHARED_DEV_PLUGIN_REPO:-https://github.com/Mellanox/k8s-rdma-shared-dev-plugin.git}
-export K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH=${K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH:-master}
+export K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH=${K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH:-''}
 export K8S_RDMA_SHARED_DEV_PLUGIN_PR=${K8S_RDMA_SHARED_DEV_PLUGIN_PR-''}
+export K8S_RDMA_SHARED_DEV_PLUGIN_HARBOR_IMAGE=${K8S_RDMA_SHARED_DEV_PLUGIN_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/k8s-rdma-shared-device-plugin}
 
 function download_and_build {
     status=0
 
-    echo "Download $IPOIB_CNI_REPO"
-    rm -rf $WORKSPACE/ipoib-cni
-    git clone $IPOIB_CNI_REPO $WORKSPACE/ipoib-cni
-    pushd $WORKSPACE/ipoib-cni
-    # Check if part of Pull Request and
-    if test ${IPOIB_CNI_PR}; then
-        git fetch --tags --progress $IPOIB_CNI_REPO +refs/pull/$IPOIB_CNI_PR/*:refs/remotes/origin/pr/$IPOIB_CNI_PR/*
-        git pull origin pull/${IPOIB_CNI_PR}/head
-    elif test $IPOIB_CNI_BRANCH; then
-        git checkout $IPOIB_CNI_BRANCH
-    fi
-    
-    make image
-
-    popd
-
-   echo "Download $K8S_RDMA_SHARED_DEV_PLUGIN_REPO"
-    rm -rf $WORKSPACE/k8s-rdma-shared-dev-plugin
-    git clone $K8S_RDMA_SHARED_DEV_PLUGIN_REPO $WORKSPACE/k8s-rdma-shared-dev-plugin
-    pushd $WORKSPACE/k8s-rdma-shared-dev-plugin
-    # Check if part of Pull Request and
-    if test ${K8S_RDMA_SHARED_DEV_PLUGIN_PR}; then
-        git fetch --tags --progress $K8S_RDMA_SHARED_DEV_PLUGIN_REPO +refs/pull/$K8S_RDMA_SHARED_DEV_PLUGIN_PR/*:refs/remotes/origin/pr/$K8S_RDMA_SHARED_DEV_PLUGIN_PR/*
-        git pull origin pull/${K8S_RDMA_SHARED_DEV_PLUGIN_PR}/head
-    elif test $K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH; then
-        git checkout $K8S_RDMA_SHARED_DEV_PLUGIN_BRANCH
+    build_github_project "ipoib-cni" "TAG=$IPOIB_CNI_HARBOR_IMAGE make image"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "ERROR: Failed to build the ipoib-cni project!"
+        return $status
     fi
 
-    make image
+    change_image_name $IPOIB_CNI_HARBOR_IMAGE mellanox/ipoib-cni:latest
 
-    popd
+    build_github_project "k8s-rdma-shared-dev-plugin" "TAG=$K8S_RDMA_SHARED_DEV_PLUGIN_HARBOR_IMAGE make image"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "ERROR: Failed to build the k8s-rdma-shared-dev-plugin project!"
+        return $status
+    fi
+
+    change_image_name $K8S_RDMA_SHARED_DEV_PLUGIN_HARBOR_IMAGE mellanox/k8s-rdma-shared-dev-plugin:latest
 }
-
-
-source ./common/common_functions.sh
 
 create_workspace
 

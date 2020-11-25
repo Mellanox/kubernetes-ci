@@ -1,5 +1,7 @@
 #!/bin/bash -x
 
+source ./common/common_functions.sh
+
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
@@ -8,12 +10,9 @@ export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export ANTREA_CNI_REPO=${ANTREA_CNI_REPO:-https://github.com/vmware-tanzu/antrea.git}
-export ANTREA_CNI_BRANCH=${ANTREA_CNI_BRANCH:-master}
+export ANTREA_CNI_BRANCH=${ANTREA_CNI_BRANCH:-''}
 export ANTREA_CNI_PR=${ANTREA_CNI_PR:-''}
-
-export SRIOV_NETWORK_DEVICE_PLUGIN_REPO=${SRIOV_NETWORK_DEVICE_PLUGIN_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin}
-export SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH=${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH:-master}
-export SRIOV_NETWORK_DEVICE_PLUGIN_PR=${SRIOV_NETWORK_DEVICE_PLUGIN_PR-''}
+export ANTREA_CNI_HARBOR_IMAGE=${ANTREA_CNI_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/antrea}
 
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
@@ -34,28 +33,13 @@ function download_and_build {
 
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
-    echo "Download ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO}"
-    rm -rf $WORKSPACE/sriov-network-device-plugin
-    git clone ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} $WORKSPACE/sriov-network-device-plugin
-    pushd $WORKSPACE/sriov-network-device-plugin
-    if test ${SRIOV_NETWORK_DEVICE_PLUGIN_PR}; then
-        git fetch --tags --progress ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} +refs/pull/*:refs/remotes/origin/pr/*
-        git pull origin pull/${SRIOV_NETWORK_DEVICE_PLUGIN_PR}/head
-    elif test ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}; then
-        git checkout ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}
-    fi
-    git log -p -1 > $ARTIFACTS/sriov-network-device-plugin-git.txt
-    make build
-    let status=status+$?
-    make image
+    deploy_sriov_device_plugin
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Failed to build ${SRIOV_NETWORK_DEVICE_PLUGIN_REPO} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH} ${SRIOV_NETWORK_DEVICE_PLUGIN_BRANCH}"
+        echo "ERROR: Failed to build the sriov-network-device-plugin project!"
         return $status
     fi
 
-    \cp build/* $CNI_BIN_DIR/
-    popd
     cat > $ARTIFACTS/configMap.yaml <<EOF
 apiVersion: v1
 kind: ConfigMap
@@ -79,31 +63,23 @@ data:
 EOF
 
     cp /etc/pcidp/config.json $ARTIFACTS
-    
-    
-    echo "Download Antrea components"
-    #wget https://raw.githubusercontent.com/vmware-tanzu/antrea/master/build/yamls/antrea.yml -P $ARTIFACTS/
-    rm -rf $WORKSPACE/antrea
-    git clone ${ANTREA_CNI_REPO} $WORKSPACE/antrea
-    pushd $WORKSPACE/antrea
-    if test ${ANTREA_CNI_PR}; then
-        git fetch --tags --progress ${ANTREA_CNI_REPO} +refs/pull/${ANTREA_CNI_PR}/head:refs/remotes/origin/pull/${ANTREA_CNI_PR}/head
-        git pull origin pull/${ANTREA_CNI_PR}/head
-    elif test ${ANTREA_CNI_BRANCH}; then
-        git checkout ${ANTREA_CNI_BRANCH}
-    fi
-    make build
+        
+    build_github_project "antrea-cni" "export VERSION=latest && make build"
+
     let status=status+$?
     if [ "$status" != 0 ]; then
-        echo "Failed to build ${ANTREA_CNI_REPO}!!!"
+        echo "ERROR: Failed to build the antrea-cni project!"
         return $status
     fi
 
-    if [[ -z "$(grep hw-offload $WORKSPACE/antrea/build/yamls/antrea.yml)" ]];then
-        sed -i '/start_ovs/a\        - --hw-offload' $WORKSPACE/antrea/build/yamls/antrea.yml
+    if [[ -z "${ANTREA_CNI_PR}${ANTREA_CNI_BRANCH}" ]];then
+        change_image_name $ANTREA_CNI_HARBOR_IMAGE antrea/antrea-ubuntu
     fi
-    git log -p -1 > $ARTIFACTS/antrea-git.txt
     
+    if [[ -z "$(grep hw-offload $WORKSPACE/antrea-cni/build/yamls/antrea.yml)" ]];then
+        sed -i '/start_ovs/a\        - --hw-offload' $WORKSPACE/antrea-cni/build/yamls/antrea.yml
+    fi
+
     cat > $ARTIFACTS/antrea-crd.yaml <<EOF
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
@@ -153,8 +129,6 @@ function create_vfs {
 }
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence
 
-source ./common/common_functions.sh
-
 create_workspace
 
 get_arch
@@ -192,7 +166,7 @@ kubectl create -f $ARTIFACTS/configMap.yaml
 kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
 
 
-kubectl create -f $WORKSPACE/antrea/build/yamls/antrea.yml
+kubectl create -f $WORKSPACE/antrea-cni/build/yamls/antrea.yml
 
 cp $ARTIFACTS/antrea-crd.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
