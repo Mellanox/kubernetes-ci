@@ -381,6 +381,38 @@ function test_probes {
     return 0
 }
 
+function test_predefined_name {
+    status=0
+    echo "Testing Predefined NicClusterPolicy name feature..."
+    echo ""
+
+    local sample_file="$ARTIFACTS"/failing-nic-cluster-policy.yaml
+
+    configure_common "$sample_file" "failing-nic-cluster-policy"
+    configure_device_plugin "$sample_file"
+
+    kubectl create -f $sample_file
+
+    wait_nic_policy_states "failing-nic-cluster-policy" "" "ignore"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: NicClusterPolicy state did not become ignere!."
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+
+    echo "Predefined name test success!!!"
+    echo ""
+    return 0
+}
+
+
 function exit_code {
     rc="$1"
     echo "All logs $LOGDIR"
@@ -440,6 +472,13 @@ function main {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: Testing secondary network failed!!"
+        exit_code $status
+    fi
+
+    test_predefined_name
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Predefined name test failed!"
         exit_code $status
     fi
 
