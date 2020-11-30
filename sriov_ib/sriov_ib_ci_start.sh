@@ -88,9 +88,6 @@ EOF
     fi
 
     change_image_name $SRIOV_IB_CNI_HARBOR_IMAGE mellanox/ib-sriov-cni:latest
-    pushd $WORKSPACE/sriov-ib-cni
-    \cp build/* $CNI_BIN_DIR/
-    popd
 
     deploy_sriov_device_plugin
     let status=status+$?
@@ -167,6 +164,7 @@ kubectl label node $(kubectl get nodes -o name | cut -d'/' -f 2) node-role.kuber
 
 kubectl create -f $WORKSPACE/ib-k8s/deployment/ib-kubernetes-configmap.yaml
 kubectl create -f $WORKSPACE/ib-k8s/deployment/ib-sriov-crd.yaml
+kubectl create -f $WORKSPACE/sriov-ib-cni/deployment/ib-sriov-cni-daemonset.yaml
 
 kubectl create -f $ARTIFACTS/configMap.yaml
 kubectl create -f $WORKSPACE/ib-k8s/deployment/ib-kubernetes.yaml
