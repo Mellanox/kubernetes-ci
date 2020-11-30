@@ -46,7 +46,6 @@ export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 N=$((1 + RANDOM % 128))
 export NETWORK=${NETWORK:-"192.168.$N"}
 
-export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 export SCRIPTS_DIR=${SCRIPTS_DIR:-$(pwd)}
 
 ##################################################
@@ -346,7 +345,7 @@ function deploy_calico {
         return $status
     fi
 
-    sleep 20
+    sleep 60
 
     # abdallahyas: Since we know that the calico creates a cni conf file with a name starting 
     # with 10* which should be the first alphabetical file after the deleted 00* file, restarting 
@@ -563,6 +562,51 @@ function create_test_pod {
     local pod_image=${3:-'harbor.mellanox.com/cloud-orchestration/rping-test'}
     local pod_network=${4:-'macvlan-net'}
 
+    render_test_pods_common $pod_name $file $pod_image $pod_network
+
+    kubectl create -f $file
+
+    wait_pod_state $pod_name 'Running'
+    if [[ "$?" != 0 ]];then
+        echo "Error Running $pod_name!!"
+        return 1
+    fi
+
+    echo "$pod_name is now running."
+    sleep 5
+    return 0
+}
+
+function create_rdma_test_pod {
+    local pod_name=$1
+    local rdma_resource_name=rdma/$2
+    local image="$3"
+    local network="$4"
+
+    local test_pod_file=${ARTIFACTS}/${pod_name}.yaml
+
+    render_test_pods_common "$pod_name" "$test_pod_file" "$image" "$network"
+
+    render_test_pod_rdma_resources $rdma_resource_name $test_pod_file
+
+    kubectl create -f "$ARTIFACTS"/"$pod_name".yaml
+    wait_pod_state $pod_name 'Running'
+    if [[ "$?" != 0 ]];then
+        echo "Error Running $pod_name!!"
+        return 1
+    fi
+
+    echo "$pod_name is now running."
+    sleep 5
+    return 0
+}
+
+function render_test_pods_common {
+    local pod_name="${1:-test-pod-$$}"
+    local file="${2:-${ARTIFACTS}/${pod_name}.yaml}"
+    local pod_image=${3:-'harbor.mellanox.com/cloud-orchestration/rping-test:latest'}
+    local pod_network=${4:-'macvlan-net'}
+
     if [[ ! -f "$file" ]];then
         touch "$file"
     fi
@@ -579,19 +623,22 @@ function create_test_pod {
     yaml_write spec.containers[0].command[0] "/bin/bash" $file
     yaml_write spec.containers[0].args[0] "-c" $file
     yaml_write spec.containers[0].args[1] "--" $file
-    yaml_write spec.containers[0].args[2] "while true; do sleep 300000; done;" $file
+    yaml_write spec.containers[0].args[2] "while true; do sleep 300000; done;" $file 
+}
 
-    kubectl create -f $file
+function render_test_pod_rdma_resources {
+    local rdma_resource_name=${1:-rdma/rdma_shared_devices_a}
+    local file="$2"
 
-    wait_pod_state $pod_name 'Running'
-    if [[ "$?" != 0 ]];then
-        echo "Error Running $pod_name!!"
-        return 1
+    if [[ ! -f "$file" ]];then
+        render_test_pods_common
     fi
 
-    echo "$pod_name is now running."
-    sleep 5
-    return 0
+    yaml_write spec.containers[0].resources.requests "" $file
+    yaml_write spec.containers[0].resources.limits "" $file
+
+    yaml_write spec.containers[0].resources.requests.$rdma_resource_name 1 $file
+    yaml_write spec.containers[0].resources.limits.$rdma_resource_name 1 $file
 }
 
 function test_pods_connectivity {
@@ -704,4 +751,107 @@ function change_image_name {
     fi
 
     docker rmi $old_image_name
+}
+
+function get_auto_net_device {
+    ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n1 | awk '{print $1}') | awk '{print $9}'
+}
+
+function deploy_k8s_bare {
+    k8s_build
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to build Kubernetes!!"
+        popd
+        return $status
+    fi
+
+    k8s_run
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to run Kubernetes!!"
+        popd
+        return $status
+    fi
+}
+
+function test_rdma_rping {
+    pod_name1=$1
+    pod_name2=$2
+    echo "Testing Rping between $pod_name1 and $pod_name2"
+
+    ip_1=$(/usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1 | grep inet | awk '{print $2}')
+    /usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1
+    echo "$pod_name1 has ip ${ip_1}"
+
+    screen -S rping_server -d -m bash -x -c "kubectl exec -t $pod_name1 -- rping -svd"
+    sleep 20
+    kubectl exec -t $pod_name2 -- rping -cvd -a $ip_1 -C 1
+
+    return $?
+}
+
+function test_rdma_plugin {
+    status=0
+    local test_pod_1_name='test-pod-1'
+    local test_pod_2_name='test-pod-2'
+    local image="$1"
+    local network="$2"
+
+    echo "Testing RDMA shared mode device plugin."
+    echo ""
+    echo "Creating testing pods."
+
+    create_rdma_test_pod $test_pod_1_name rdma_shared_devices_a "$image" "$network"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $test_pod_1_name!"
+        return $status
+    fi
+
+    create_rdma_test_pod $test_pod_2_name rdma_shared_devices_a "$image" "$network"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $test_pod_2_name!"
+        return $status
+    fi
+
+    echo "checking if the rdma resources were mounted."
+
+    kubectl exec -it $test_pod_1_name -- ls -l /dev/infiniband
+    if [[ "$?" != "0" ]]; then
+        echo "pod $test_pod_1_name /dev/infiniband directory is empty! failing the test."
+        return 1
+    fi
+
+    kubectl exec -it $test_pod_2_name -- ls -l /dev/infiniband
+    if [[ "$?" != "0" ]]; then
+        echo "pod $test_pod_2_name /dev/infiniband directory is empty! failing the test."
+        return 1
+    fi
+
+    echo ""
+    echo "rdma resources are available inside the testing pods!"
+    echo ""
+
+    test_rdma_rping $test_pod_1_name $test_pod_2_name
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error testing the rping between $test_pod_1_name $test_pod_2_name!"
+        return $status
+    fi
+
+    echo ""
+    echo "rdma rping test succeeded!"
+    echo ""
+
+    kubectl delete pods --all
+    sleep 30
+
+    return $status
+}
+
+function load_core_drivers {
+    sudo modprobe mlx5_core
+    sudo modprobe ib_core
 }

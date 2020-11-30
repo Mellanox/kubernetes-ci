@@ -1,6 +1,7 @@
 #!/bin/bash -x
 
 source ./common/common_functions.sh
+source ./common/nic_operator_common.sh
 
 export RECLONE=${RECLONE:-true}
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
@@ -8,11 +9,6 @@ export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
-
-export NIC_OPERATOR_REPO=${NIC_OPERATOR_REPO:-https://github.com/Mellanox/network-operator}
-export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-''}
-export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
-export NIC_OPERATOR_HARBOR_IMAGE=${NIC_OPERATOR_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/network-operator}
 
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
@@ -31,17 +27,8 @@ function download_and_build {
 
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
-    build_github_project "nic-operator" "TAG=$NIC_OPERATOR_HARBOR_IMAGE make image"
-
-    let status=status+$?
-
-    if [ "$status" != 0 ]; then
-        echo "ERROR: Failed to build the nic-operator project!"
-        return $status
-    fi
-
-    change_image_name $NIC_OPERATOR_HARBOR_IMAGE mellanox/network-operator
-    mv $WORKSPACE/nic-operator $WORKSPACE/mellanox-network-operator
+    build_nic_operator_image
+    return $?
 }
 
 function configure_namespace {

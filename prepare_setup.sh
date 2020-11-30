@@ -4,6 +4,9 @@ go_version=""
 
 go_dir=/usr/local
 
+helm_version="v3.4.0"
+helm_package_dir_name='helm'
+
 ##################################################
 ##################################################
 ##################   input   #####################
@@ -238,6 +241,17 @@ install_yq(){
     return 0
 }
 
+install_helm(){
+    local helm_pkg_name="helm-$helm_version-linux-amd64"
+
+    rm -rf /usr/local/$helm_package_dir_name
+    rm -rf /usr/local/bin/helm
+
+    wget -O /usr/local/${helm_package_dir_name}.tar.gz https://get.helm.sh/"$helm_pkg_name".tar.gz
+    tar -C /usr/local -xzf /usr/local/${helm_package_dir_name}.tar.gz
+    ln -s /usr/local/linux-amd64/helm /usr/local/bin/helm
+}
+
 main(){
     status=0
 
@@ -259,6 +273,9 @@ main(){
     let status=$status+$?
 
     install_yq
+    let status=$status+$?
+
+    install_helm
     let status=$status+$?
 
     return $status
