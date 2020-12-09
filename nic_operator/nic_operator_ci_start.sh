@@ -113,12 +113,6 @@ function patch_pod_cider_to_node {
 function main {
     create_workspace
 
-    echo "Get CPU architechture"
-    export ARCH="amd"
-    if [[ $(uname -a) == *"ppc"* ]]; then
-       export ARCH="ppc"
-    fi
-
     cp ./deploy/macvlan-net.yaml "$ARTIFACTS"/
     cp ./nic_operator/yaml/* "$ARTIFACTS"/
 
