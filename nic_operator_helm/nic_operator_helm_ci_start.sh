@@ -81,6 +81,8 @@ function deploy_operator {
 
     pushd $WORKSPACE/mellanox-network-operator
 
+    sudo apt-get purge -y rdma-core
+
     helm install -f $values_file \
         -n $NIC_OPERATOR_NAMESPACE \
         --create-namespace \

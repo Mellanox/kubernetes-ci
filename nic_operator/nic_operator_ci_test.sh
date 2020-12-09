@@ -102,6 +102,8 @@ function test_deleting_network_operator {
 function test_rdma_only {
     status=0
 
+    sudo apt-get install -y rdma-core
+
     load_core_drivers
     sleep 2
 
@@ -154,6 +156,8 @@ function configure_common {
 
 function configure_ofed {
     local file_name="$1"
+
+    sudo apt-get purge -y rdma-core
 
     modprobe -r rpcrdma
 
@@ -353,7 +357,7 @@ function test_probes {
 
     sleep 10
 
-    local modules_list="mlx5_fpga_tools mlx5_ib mlx5_core"
+    local modules_list="mlx5_ib mlx5_core"
 
     echo "Testing Probes..."
     echo "Unloading ofed modules..."
