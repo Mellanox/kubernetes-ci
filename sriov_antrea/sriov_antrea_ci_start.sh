@@ -131,8 +131,6 @@ function create_vfs {
 
 create_workspace
 
-get_arch
-
 create_vfs
 
 pushd $WORKSPACE

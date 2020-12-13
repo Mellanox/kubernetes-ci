@@ -64,10 +64,10 @@ create_workspace(){
 }
 
 get_arch(){
-    echo "Get CPU architechture"
-    export ARCH="amd"
     if [[ $(uname -a) == *"ppc"* ]]; then
-        export ARCH="ppc"
+        echo ppc
+    else
+        echo amd
     fi
 }
 
@@ -223,6 +223,7 @@ multus_install(){
 multus_configuration() {
     status=0
     echo "Configure Multus"
+    local arch=$(get_arch)
     date
     sleep 30
     sed -i 's;/etc/cni/net.d/multus.d/multus.kubeconfig;/etc/kubernetes/admin.conf;g' $WORKSPACE/multus-cni/images/multus-daemonset.yml
@@ -235,7 +236,7 @@ multus_configuration() {
     d=$(date '+%s')
     while [ $d -lt $stop ]; do
        echo "Wait until multus is ready"
-       ready=$(kubectl -n kube-system get ds |grep kube-multus-ds-${ARCH}|awk '{print $4}')
+       ready=$(kubectl -n kube-system get ds |grep kube-multus-ds-${arch}|awk '{print $4}')
        rc=$?
        kubectl -n kube-system get ds
        d=$(date '+%s')
@@ -247,7 +248,7 @@ multus_configuration() {
     done
     if [ $d -gt $stop ]; then
         kubectl -n kube-system get ds
-        echo "kube-multus-ds-${ARCH}64 is not ready in $TIMEOUT sec"
+        echo "kube-multus-ds-${arch}64 is not ready in $TIMEOUT sec"
         return 1
     fi
 

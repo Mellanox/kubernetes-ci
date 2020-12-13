@@ -101,12 +101,6 @@ function deploy_operator {
 function main {
     create_workspace
 
-    echo "Get CPU architechture"
-    export ARCH="amd"
-    if [[ $(uname -a) == *"ppc"* ]]; then
-       export ARCH="ppc"
-    fi
-
     load_core_drivers
     rm -f /etc/cni/net.d/00*
 

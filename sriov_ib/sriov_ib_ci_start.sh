@@ -130,8 +130,6 @@ fi
 
 create_workspace 
 
-get_arch
-
 pushd $WORKSPACE
 
 load_rdma_modules

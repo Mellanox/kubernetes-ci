@@ -51,8 +51,6 @@ function download_and_build {
 
 create_workspace
 
-get_arch
-
 cp ./ipoib/yaml/k8s-rdma-shared-device-plugin-configmap.yaml ${ARTIFACTS}/
 
 pushd $WORKSPACE

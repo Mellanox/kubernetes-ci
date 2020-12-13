@@ -251,6 +251,7 @@ function test_secondary_network {
     status=0
     local sample_file="$ARTIFACTS"/seconday-network-nic-cluster-policy.yaml
     local multus_file="$WORKSPACE/multus-cni/images/multus-daemonset.yml"
+    local macvlan_bin="$WORKSPACE/plugins/bin/macvlan"
 
     echo ""
     echo "Testing Secondary networks..."
@@ -322,6 +323,16 @@ function test_secondary_network {
         echo "Error: Couldn't delete $sample_file!"
         return $status
     fi
+
+    # Note(abdallahyas): Redeploy the multus in the system to bring
+    # back the secondary network capabilities to the system.
+
+    multus_configuration
+
+    cp "$macvlan_bin" "$CNI_BIN_DIR"/
+
+    create_macvlan_net
+
     return 0
 
 }
