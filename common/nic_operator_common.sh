@@ -21,8 +21,8 @@ export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
 export NIC_OPERATOR_HARBOR_IMAGE=${NIC_OPERATOR_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/network-operator}
 
 export OFED_DRIVER_IMAGE=${OFED_DRIVER_IMAGE:-'mofed'}
-export OFED_DRIVER_REPO=${OFED_DRIVER_REPO:-'harbor.mellanox.com/cloud-orchestration'}
-export OFED_DRIVER_VERSION=${OFED_DRIVER_VERSION:-'5.0-2.1.8.0'}
+export OFED_DRIVER_REPO=${OFED_DRIVER_REPO:-'harbor.mellanox.com/sw-linux-devops'}
+export OFED_DRIVER_VERSION=${OFED_DRIVER_VERSION:-'5.2-0.5.7.0'}
 
 export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-'k8s-rdma-shared-device-plugin'}
 export DEVICE_PLUGIN_REPO=${DEVICE_PLUGIN_REPO:-'harbor.mellanox.com/cloud-orchestration'}
