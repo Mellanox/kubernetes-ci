@@ -150,11 +150,6 @@ if [ $? -ne 0 ]; then
 fi
 kubectl patch node "$(kubectl get nodes -o name | head -n 1 | cut -d / -f 2)" -p '{"spec":{"podCIDR":"192.169.50.0/24"}}' 
 
-pushd $WORKSPACE/multus-cni 
-./build
-cp bin/multus /opt/cni/bin/
-popd
-
 echo " {\"cniVersion\": \"0.4.0\", \"name\": \"multus-cni-network\", \"type\": \"multus\", \"logLevel\": \"debug\", \"logFile\": \"/var/log/multus.log\", \"kubeconfig\": \"$KUBECONFIG\", \"clusterNetwork\": \"sriov-antrea-net\" }"\
        	> /etc/cni/net.d/00-multus.conf
 
