@@ -50,37 +50,48 @@ function configure_namespace {
 
 function deploy_operator_components {
     let status=0
-    pushd $WORKSPACE/mellanox-network-operator/deploy
 
-    yaml_write spec.template.spec.containers[0].image 'mellanox/network-operator' operator.yaml
-    let status=status+$?
-
-    yaml_write spec.template.spec.containers[0].imagePullPolicy 'IfNotPresent' operator.yaml
-    let status=status+$?
-
-    kubectl create -f operator-resources-ns.yaml
-    let status=status+$?
-
-    kubectl create -f operator-ns.yaml
-    let status=status+$?
-
-    kubectl create -f service_account.yaml
-    let status=status+$?
-
-    kubectl create -f role.yaml
-    let status=status+$?
-
-    kubectl create -f role_binding.yaml
-    let status=status+$?
-
-    for file in $(find ./crds/ -type f -name *_crd.yaml);do
-        kubectl apply -f "$file"
+    if [[ ! -d $WORKSPACE/mellanox-network-operator/config ]];then
+    
+        configure_namespace mlnx-network-operator
+    
+        pushd $WORKSPACE/mellanox-network-operator/deploy
+    
+        yaml_write spec.template.spec.containers[0].image 'mellanox/network-operator' operator.yaml
         let status=status+$?
-        sleep 2
-    done
+    
+        yaml_write spec.template.spec.containers[0].imagePullPolicy 'IfNotPresent' operator.yaml
+        let status=status+$?
+    
+        kubectl create -f operator-resources-ns.yaml
+        let status=status+$?
+    
+        kubectl create -f operator-ns.yaml
+        let status=status+$?
+    
+        kubectl create -f service_account.yaml
+        let status=status+$?
+    
+        kubectl create -f role.yaml
+        let status=status+$?
+    
+        kubectl create -f role_binding.yaml
+        let status=status+$?
+    
+        for file in $(find ./crds/ -type f -name *_crd.yaml);do
+            kubectl apply -f "$file"
+            let status=status+$?
+            sleep 2
+        done
+    
+        kubectl create -f operator.yaml
+        let status=status+$?
+    else
+        pushd $WORKSPACE/mellanox-network-operator
 
-    kubectl create -f operator.yaml
-    let status=status+$?
+        make deploy
+        let status=status+$?
+    fi
 
     if [ "$status" != 0 ]; then
         echo "Failed to deploy operator componentes"
@@ -145,8 +156,6 @@ function main {
         echo "Failed to download and build components"
         exit 1
     fi
-
-    configure_namespace mlnx-network-operator
 
     deploy_operator_components
     if [ $? -ne 0 ]; then

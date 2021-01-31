@@ -6,6 +6,7 @@ export ARTIFACTS=$WORKSPACE/artifacts
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 source ./common/common_functions.sh
+source ./common/nic_operator_common.sh
 
 function delete_pods {
     kubectl delete pods --all
@@ -194,36 +195,29 @@ function get_service_log {
 }
 
 function delete_nic_operator_namespace {
-    local nic_operator_namespace_dir=$WORKSPACE/mellanox-network-operator/deploy/
-    local nic_operator_namespace_file=$nic_operator_namespace_dir/operator-ns.yaml
+    let status=0
 
-    if [[ ! -f "$nic_operator_namespace_file" ]];then
-        echo "$nic_operator_namespace_file not found!!"
-        echo "Assuming CI did not start."
-        return 0
-    fi
+    kubectl delete namespace "$NIC_OPERATOR_RESOURCES_NAMESPACE"
+    let status=$status+$?
 
-    for file in $(find $nic_operator_namespace_dir -type f -name *-ns.yaml);do
-        kubectl delete -f "$file"
-        sleep 30
-    done
+    kubectl delete namespace "$NIC_OPERATOR_NAMESPACE"
+    let status=$status+$?
+
+    return $status
 }
 
 function delete_nic_cluster_policies {
-    local nic_operator_crds_dir=$WORKSPACE/mellanox-network-operator/deploy/crds/
-    local nic_cluster_policy_file=$(find $nic_operator_crds_dir -type f -name *nicclusterpolicies_crd.yaml)
 
-    if [[ ! -f "$nic_cluster_policy_file" ]];then
-        echo "No $nic_cluster_policy_file found, assuming  CI did not start!"
+    local nic_cluster_policy_name="$NIC_OPERATOR_CRD_NAME"
+
+    if [[ -z "$(kubectl get crds | grep $nic_cluster_policy_name)" ]];then
+        echo "No CRD named $nic_cluster_policy_name found, assuming  CI did not start!"
         return 0
     fi
 
-    local nic_cluster_policy_name=$(yaml_read metadata.name "$nic_cluster_policy_file")
-    local resources_namespace=$(yaml_read metadata.name ${nic_operator_crds_dir}/../operator-resources-ns.yaml)
-
     kubectl delete $nic_cluster_policy_name --all --wait=true
 
-    asure_resource_deleted "pods" "$resources_namespace"
+    asure_resource_deleted "pods" "$NIC_OPERATOR_RESOURCES_NAMESPACE"
 
     load_core_drivers
     sleep 5

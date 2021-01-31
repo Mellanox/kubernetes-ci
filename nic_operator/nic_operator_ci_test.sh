@@ -20,8 +20,6 @@ export MACVLAN_NETWORK_DEFAULT_NAME='example-macvlan'
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-'/opt/cni/bin'}
 
-nic_operator_dir=$WORKSPACE/mellanox-network-operator/deploy
-
 source ./common/common_functions.sh
 source ./common/clean_common.sh
 source ./common/nic_operator_common.sh
@@ -31,15 +29,6 @@ test_pod_image='harbor.mellanox.com/cloud-orchestration/rping-test'
 function nic_policy_create {
     status=0
     cr_file="$1"
-
-    operator_namespace=$(yaml_read metadata.name ${nic_operator_dir}/deploy/operator-ns.yaml)
-    if [[ -z "$operator_namespace" ]]; then
-        echo "Could not find operatore name space in ${nic_operator_dir}/deploy/operator-ns.yaml !!!"
-        return 1
-    fi
-
-    NIC_OPERATOR_NAMESPACE=$operator_namespace
-    export NIC_OPERATOR_NAMESPACE
 
     kubectl create -f $cr_file
 
@@ -268,7 +257,13 @@ function test_secondary_network {
     sudo rm -f "${CNI_BIN_DIR}/multus"
     sudo rm -f "${CNI_BIN_DIR}/whereabouts"
 
-    kubectl create -f $WORKSPACE/mellanox-network-operator/deploy/crds/k8s.cni.cncf.io_networkattachmentdefinitions_crd.yaml
+    if [[ -d "$WORKSPACE/mellanox-network-operator/config" ]];then
+        network_attachment_definition_file="$WORKSPACE/mellanox-network-operator/config/crd/bases/k8s.cni.cncf.io_networkattachmentdefinitions_crd.yaml"
+    else
+        network_attachment_definition_file="$WORKSPACE/mellanox-network-operator/deploy/crds/k8s.cni.cncf.io_networkattachmentdefinitions_crd.yaml"
+    fi
+
+    kubectl create -f "$network_attachment_definition_file"
 
     unlabel_master
 
