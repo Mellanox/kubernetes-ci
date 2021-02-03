@@ -12,6 +12,7 @@ export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
 export MACVLAN_NETWORK_DEFAULT_NAME=${MACVLAN_NETWORK_DEFAULT_NAME:-'example-macvlan'}
 export NIC_OPERATOR_NAMESPACE=${NIC_OPERATOR_NAMESPACE:-'mlnx-network-operator'}
+export NIC_OPERATOR_RESOURCES_NAMESPACE=${NIC_OPERATOR_RESOURCES_NAMESPACE:-'mlnx-network-operator-resources'}
 
 export nic_operator_dir=$WORKSPACE/mellanox-network-operator/
 
@@ -41,7 +42,7 @@ export SECONDARY_NETWORK_IPAM_PLUGIN_REPO=${SECONDARY_NETWORK_IPAM_PLUGIN_REPO:-
 export SECONDARY_NETWORK_IPAM_PLUGIN_VERSION=${SECONDARY_NETWORK_IPAM_PLUGIN_VERSION:-'latest'}
 
 export NIC_OPERATOR_HELM_NAME=${NIC_OPERATOR_HELM_NAME:-'network-operator-helm-ci'}
-NIC_OPERATOR_CRD_FILE=$nic_operator_dir/deploy/crds/mellanox.com_nicclusterpolicies_crd.yaml
+export NIC_OPERATOR_CRD_NAME=${NIC_OPERATOR_CRD_NAME:-'nicclusterpolicies.mellanox.com'}
 
 function configure_macvlan_custom_resource {
     local file_name="$1"
@@ -125,9 +126,7 @@ function verfiy_module {
         return 1
     fi
 
-    operator_resourses_namespace=$(yaml_read metadata.name ${nic_operator_dir}/deploy/operator-resources-ns.yaml)
-
-    ofed_module=$(kubectl exec -n $operator_resourses_namespace $ofed_pod_name -- modinfo $module | grep srcversion | cut -d':' -f 2 | tr -d ' ')
+    ofed_module=$(kubectl exec -n $NIC_OPERATOR_RESOURCES_NAMESPACE $ofed_pod_name -- modinfo $module | grep srcversion | cut -d':' -f 2 | tr -d ' ')
     if [[ -z "$ofed_module" ]];then
          echo "Error: couldn't get the ofed module signture!!"
          return 1
@@ -149,8 +148,6 @@ function get_nic_policy_state {
     local state_name=$2
 
     local lower_state_name="$(tr [:upper:] [:lower:] <<< $state_name)"
-
-    NIC_OPERATOR_CRD_NAME=$(yq r $NIC_OPERATOR_CRD_FILE metadata.name)
 
     local nic_policy_status=$(kubectl get "$NIC_OPERATOR_CRD_NAME" \
         -n "$NIC_OPERATOR_NAMESPACE" "$resource_name" -o yaml)
@@ -176,8 +173,6 @@ function wait_nic_policy_states {
     local cr_name=${1:-nic-cluster-policy}
     local state_key=${2:-state}
     local wanted_state=${3:-ready}
-
-    NIC_OPERATOR_CRD_NAME=$(yq r $NIC_OPERATOR_CRD_FILE metadata.name)
 
     cr_status="$(get_nic_policy_state $cr_name $state_key)"
     let stop=$(date '+%s')+$TIMEOUT
