@@ -15,7 +15,7 @@ export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$P
 
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
-export KERNEL_VERSION=${KERNEL_VERSION:-4.15.0-109-generic}
+export KERNEL_VERSION=${KERNEL_VERSION:-$(uname -r)}
 export OS_DISTRO=${OS_DISTRO:-ubuntu}
 export OS_VERSION=${OS_VERSION:-20.04}
 

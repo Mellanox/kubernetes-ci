@@ -9,7 +9,11 @@ source ./common/common_functions.sh
 source ./common/nic_operator_common.sh
 
 function delete_pods {
-    kubectl delete pods --all
+    for pod in "$(kubectl get pod -o name | cut -d/ -f2)";do
+        if [[ "$pod" =~ .*test-pod.* ]];then
+            kubectl delete pod "$pod"
+        fi
+    done
 }
 
 function stop_system_deployments {
@@ -229,6 +233,21 @@ function delete_nic_cluster_policies {
 
     load_core_drivers
     sleep 5
+}
+
+function undeploy_gpu_operator {
+    helm uninstall gpu-operator
+
+    asure_resource_deleted "pod" "nvidia-device-plugin-daemonset"
+    let status=$status+$?
+
+    asure_resource_deleted "pod" "gpu-operator"
+    let status=$status+$?
+
+    asure_resource_deleted "pod" "nvidia-driver-daemonset"
+    let status=$status+$?
+
+    return $status
 }
 
 function asure_resource_deleted {

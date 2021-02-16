@@ -589,6 +589,32 @@ function create_rdma_test_pod {
     return 0
 }
 
+function create_gpu_direct_test_pod {
+    local pod_name=$1
+    local rdma_resource_name=rdma/$2
+    local image="$3"
+    local network="$4"
+
+    local test_pod_file=${ARTIFACTS}/${pod_name}.yaml
+
+    render_test_pods_common "$pod_name" "$test_pod_file" "$image" "$network"
+
+    render_test_pod_rdma_resources "$rdma_resource_name" "$test_pod_file"
+
+    render_test_pod_gpu_resources "$test_pod_file"
+
+    kubectl create -f "$ARTIFACTS"/"$pod_name".yaml
+    wait_pod_state $pod_name 'Running'
+    if [[ "$?" != 0 ]];then
+        echo "Error Running $pod_name!!"
+        return 1
+    fi
+
+    echo "$pod_name is now running."
+    sleep 5
+    return 0
+}
+
 function render_test_pods_common {
     local pod_name="${1:-test-pod-$$}"
     local file="${2:-${ARTIFACTS}/${pod_name}.yaml}"
@@ -615,6 +641,10 @@ function render_test_pods_common {
 }
 
 function render_test_pod_rdma_resources {
+    # Note(abdallahyas): This needs to be the first resource to be
+    # rendered, it will delete the resources.requests and resources.limits
+    # sections in the yaml file and create them anew.
+
     local rdma_resource_name=${1:-rdma/rdma_shared_devices_a}
     local file="$2"
 
@@ -627,6 +657,18 @@ function render_test_pod_rdma_resources {
 
     yaml_write spec.containers[0].resources.requests.$rdma_resource_name 1 $file
     yaml_write spec.containers[0].resources.limits.$rdma_resource_name 1 $file
+}
+
+function render_test_pod_gpu_resources {
+    local gpu_resource_name='nvidia.com/gpu'
+    local file="$1"
+
+    if [[ ! -f "$file" ]];then
+        render_test_pods_common
+    fi
+
+    yaml_write spec.containers[0].resources.requests["$gpu_resource_name"] 1 "$file"
+    yaml_write spec.containers[0].resources.limits["$gpu_resource_name"] 1 "$file"
 }
 
 function test_pods_connectivity {
@@ -787,6 +829,23 @@ function test_rdma_rping {
     return $?
 }
 
+function test_gpu_write_bandwidth {
+    pod_name1=$1
+    echo "Testing gpu direct between $pod_name1 and $pod_name2"
+
+    ip_1=$(/usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1 | grep inet | awk '{print $2}')
+    /usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1
+    echo "$pod_name1 has ip ${ip_1}"
+
+    local rdma_resource=$(/usr/local/bin/kubectl exec -i "$pod_name1" --\
+     ls /sys/class/infiniband | head -n 1| cut -d" " -f1)
+
+    screen -S gpu_server -d -m bash -x -c "kubectl exec -t $pod_name1 -- ib_write_bw -d $rdma_resource -F -R -q 2 --use_cuda=0"
+    sleep 20
+    kubectl exec -t $pod_name1 -- ib_write_bw -d "$rdma_resource" -F -R -q 2 --use_cuda=0 "$ip_1"
+    return $?
+}
+
 function test_rdma_plugin {
     status=0
     local test_pod_1_name='test-pod-1'
@@ -839,6 +898,52 @@ function test_rdma_plugin {
 
     echo ""
     echo "rdma rping test succeeded!"
+    echo ""
+
+    kubectl delete pods --all
+    sleep 30
+
+    return $status
+}
+
+function test_gpu_direct {
+    status=0
+    local test_pod_1_name='cuda-test-pod-1'
+    local image="$1"
+    local network="$2"
+
+    echo "Testing GPU direct."
+    echo ""
+    echo "Creating testing pods."
+
+    create_gpu_direct_test_pod $test_pod_1_name rdma_shared_devices_a "$image" "$network"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $test_pod_1_name!"
+        return $status
+    fi
+
+    echo "checking if the rdma resources were mounted."
+
+    kubectl exec -it $test_pod_1_name -- ls -l /dev/infiniband
+    if [[ "$?" != "0" ]]; then
+        echo "pod $test_pod_1_name /dev/infiniband directory is empty! failing the test."
+        return 1
+    fi
+
+    echo ""
+    echo "rdma resources are available inside the testing pods!"
+    echo ""
+
+    test_gpu_write_bandwidth $test_pod_1_name
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error testing gpu direct between $test_pod_1_name!"
+        return $status
+    fi
+
+    echo ""
+    echo "GPU direct test succeeded!"
     echo ""
 
     kubectl delete pods --all

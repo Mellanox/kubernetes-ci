@@ -14,10 +14,12 @@ function main {
     mkdir -p $ARTIFACTS
 
     delete_pods
-    
+
     collect_pods_logs
 
     delete_nic_operator
+
+    undeploy_gpu_operator
 
     general_cleaning
  
