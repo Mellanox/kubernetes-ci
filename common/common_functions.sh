@@ -330,12 +330,6 @@ function deploy_calico {
     fi
 
     sleep 60
-
-    # abdallahyas: Since we know that the calico creates a cni conf file with a name starting 
-    # with 10* which should be the first alphabetical file after the deleted 00* file, restarting 
-    # the multus pod will make the multus configure the calico as the primary network.
-    restart_multus_pod
-    return $?
 }
 
 function create_macvlan_net {
@@ -431,14 +425,6 @@ function deploy_k8s_with_multus {
         return $status
     fi
 
-    multus_install
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to clone multus!!"
-        popd
-        return $status
-    fi
-
     k8s_build
     let status=status+$?
     if [ "$status" != 0 ]; then
@@ -451,6 +437,24 @@ function deploy_k8s_with_multus {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Failed to run Kubernetes!!"
+        popd
+        return $status
+    fi
+
+    deploy_multus
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to deploy multus!!"
+        popd
+        return $status
+    fi
+}
+
+function deploy_multus {
+    multus_install
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to clone multus!!"
         popd
         return $status
     fi
@@ -742,6 +746,14 @@ function get_auto_net_device {
 }
 
 function deploy_k8s_bare {
+    network_plugins_install
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to install container networking plugins!!"
+        popd
+        return $status
+    fi
+
     k8s_build
     let status=status+$?
     if [ "$status" != 0 ]; then
