@@ -47,7 +47,6 @@ The projects use environment variables to configure their components. Each proje
 |PLUGINS_REPO | https://github.com/containernetworking/plugins.git | containernetworking repo URL |
 |PLUGINS_BRANCH | master | containernetworking branch to build |
 |PLUGINS_BRANCH_PR || containernetworking cni pr to pull, if this is used the PLUGINS_BRANCH is ignored |
-|GOPATH | ${WORKSPACE} ||
 |PATH | /usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH ||
 |CNI_BIN_DIR | /opt/cni/bin/ | this is used to configure Kubernetes local_cluser_up.sh CNI_BIN_DIR |
 |CNI_CONF_DIR | /etc/cni/net.d/ | this is used to configure Kubernetes local_cluser_up.sh CNI_CONF_DIR |
