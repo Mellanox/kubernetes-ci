@@ -28,7 +28,6 @@ export PLUGINS_REPO=${PLUGINS_REPO:-https://github.com/containernetworking/plugi
 export PLUGINS_BRANCH=${PLUGINS_BRANCH:-''}
 export PLUGINS_BRANCH_PR=${PLUGINS_BRANCH_PR:-''}
 
-export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
 
 export API_HOST=$(hostname)
@@ -78,11 +77,11 @@ k8s_build(){
     if [ ${KUBERNETES_VERSION} == 'latest_stable' ]; then
         export KUBERNETES_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
     fi
-    rm -rf $GOPATH/src/k8s.io/kubernetes
+    rm -rf $WORKSPACE/src/k8s.io/kubernetes
 
-    go get -d k8s.io/kubernetes
+    git clone https://github.com/kubernetes/kubernetes.git $WORKSPACE/src/k8s.io/kubernetes
 
-    pushd $GOPATH/src/k8s.io/kubernetes
+    pushd $WORKSPACE/src/k8s.io/kubernetes
     git checkout ${KUBERNETES_VERSION}
     git log -p -1 > $ARTIFACTS/kubernetes.txt
 
@@ -108,22 +107,6 @@ k8s_build(){
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Failed to run kubectl please fix the error above!"
-        return $status
-    fi
-
-    go get -u github.com/tools/godep
-
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to clone godep"
-        return $status
-    fi
-
-    go get -u github.com/cloudflare/cfssl/cmd/...
-
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo 'Failed to clone github.com/cloudflare/cfssl/cmd/...'
         return $status
     fi
 
