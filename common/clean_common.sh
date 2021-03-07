@@ -219,6 +219,14 @@ function delete_nic_cluster_policies {
 
     asure_resource_deleted "pods" "$NIC_OPERATOR_RESOURCES_NAMESPACE"
 
+    sleep 30
+
+    unload_mlx_compate
+    let status=$status+$?
+    if [[ "$status" != "0" ]];then
+        return $status
+    fi
+
     load_core_drivers
     sleep 5
 }
@@ -264,4 +272,20 @@ function delete_nic_operator {
 function delete_cnis_bins_and_confs {
     rm -rf ${CNI_CONF_DIR}/*
     rm -rf ${CNI_BIN_DIR}/*
+}
+
+function unload_mlx_compate {
+    # Note(abdallahyas): This is needed because of a bug with the
+    # network operator project, where the mlx_compat module (which
+    # is an OFED only module) is still loaded in the system after
+    # the MOFED conainer is stopped.
+    if [[ -z "$(lsmod | grep mlx_compat)" ]];then
+        return 0
+    fi
+
+    local modules_list='rdma_ucm rdma_cm ib_umad ib_ipoib ib_cm ib_core mlx5_core mlx5_ib'
+    sudo modprobe -r $modules_list
+    sudo modprobe -r mdev
+    sudo rmmod mlx_compat
+    return $?
 }
