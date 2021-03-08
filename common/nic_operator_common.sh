@@ -11,10 +11,10 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
 export MACVLAN_NETWORK_DEFAULT_NAME=${MACVLAN_NETWORK_DEFAULT_NAME:-'example-macvlan'}
-export NIC_OPERATOR_NAMESPACE=${NIC_OPERATOR_NAMESPACE:-'mlnx-network-operator'}
-export NIC_OPERATOR_RESOURCES_NAMESPACE=${NIC_OPERATOR_RESOURCES_NAMESPACE:-'mlnx-network-operator-resources'}
 
 export nic_operator_dir=$WORKSPACE/mellanox-network-operator/
+export NIC_OPERATOR_NAMESPACE_FILE=${NIC_OPERATOR_NAMESPACE_FILE:-"$nic_operator_dir/deploy/operator-ns.yaml"}
+export NIC_OPERATOR_RESOURCES_NAMESPACE_FILE=${NIC_OPERATOR_RESOURCES_NAMESPACE_FILE:-"$nic_operator_dir/deploy/operator-resources-ns.yaml"}
 
 export NIC_OPERATOR_REPO=${NIC_OPERATOR_REPO:-https://github.com/Mellanox/network-operator}
 export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-''}
@@ -126,7 +126,7 @@ function verfiy_module {
         return 1
     fi
 
-    ofed_module=$(kubectl exec -n $NIC_OPERATOR_RESOURCES_NAMESPACE $ofed_pod_name -- modinfo $module | grep srcversion | cut -d':' -f 2 | tr -d ' ')
+    ofed_module=$(kubectl exec -n "$(get_nic_operator_resources_namespace)" $ofed_pod_name -- modinfo $module | grep srcversion | cut -d':' -f 2 | tr -d ' ')
     if [[ -z "$ofed_module" ]];then
          echo "Error: couldn't get the ofed module signture!!"
          return 1
@@ -150,7 +150,7 @@ function get_nic_policy_state {
     local lower_state_name="$(tr [:upper:] [:lower:] <<< $state_name)"
 
     local nic_policy_status=$(kubectl get "$NIC_OPERATOR_CRD_NAME" \
-        -n "$NIC_OPERATOR_NAMESPACE" "$resource_name" -o yaml)
+        -n "$(get_nic_operator_namespace)" "$resource_name" -o yaml)
 
     if [[ "$state_name" == "state" ]];then
         yq r - status.state <<< ${nic_policy_status}
@@ -188,12 +188,12 @@ function wait_nic_policy_states {
             sleep ${POLL_INTERVAL}
             kubectl create -f $cr_file
         fi
-        kubectl get "$NIC_OPERATOR_CRD_NAME" -n "$NIC_OPERATOR_NAMESPACE" "$cr_name"
+        kubectl get "$NIC_OPERATOR_CRD_NAME" -n "$(get_nic_operator_namespace)" "$cr_name"
         sleep ${POLL_INTERVAL}
         d=$(date '+%s')
 
     done
-    kubectl describe "$NIC_OPERATOR_CRD_NAME" -n "$NIC_OPERATOR_NAMESPACE" "$cr_name"
+    kubectl describe "$NIC_OPERATOR_CRD_NAME" -n "$(get_nic_operator_namespace)" "$cr_name"
     echo "Error $cr_name is not up"
     return 1
 }
@@ -210,4 +210,22 @@ function build_nic_operator_image {
 
     change_image_name $NIC_OPERATOR_HARBOR_IMAGE mellanox/network-operator
     mv $WORKSPACE/nic-operator $nic_operator_dir
+}
+
+function get_nic_operator_namespace {
+    if [[ ! -f "$NIC_OPERATOR_NAMESPACE_FILE" ]];then
+        echo "nvidia-network-operator"
+        return 0
+    fi
+
+    yaml_read metadata.name "$NIC_OPERATOR_NAMESPACE_FILE"
+}
+
+function get_nic_operator_resources_namespace {
+    if [[ ! -f "$NIC_OPERATOR_RESOURCES_NAMESPACE_FILE" ]];then
+        echo "nvidia-network-operator-resources"
+        return 0
+    fi
+
+    yaml_read metadata.name "$NIC_OPERATOR_RESOURCES_NAMESPACE_FILE"
 }

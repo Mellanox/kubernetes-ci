@@ -19,7 +19,7 @@ In addition to the common configurations found at [README.md](./README.md), the 
 |  OS_DISTRO | ubuntu | system linux distro name, this is used to pull the right Mellanox OFED container image |
 |  OS_VERSION | 20.04 | system OS verison, this is used to pull the right Mellanox OFED container image |
 |  MACVLAN_NETWORK_DEFAULT_NAME | example-macvlan | This is used to name the macvlan network attackment difinition created by the secondary network feature |
-|  NIC_OPERATOR_NAMESPACE | mlnx-network-operator | Used to specify the namespace to deploy the network operator on |
+|  NIC_OPERATOR_NAMESPACE_FILE | $nic_operator_dir/deploy/operator-ns.yaml | The file to get the network operator namespace from |
 |  NIC_OPERATOR_HELM_NAME | network-operator-helm-ci | Used to specify the helm package name of the operator |
 |  OFED_DRIVER_IMAGE | ofed-driver | The OFED driver container image name to pull |
 |  OFED_DRIVER_REPO | harbor.mellanox.com/cloud-orchestration | The OFED driver container image repo to pull the image from. P.S. The default repo is not public, the `mellanox` repo should be used instead |
