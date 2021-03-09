@@ -197,10 +197,10 @@ function get_service_log {
 function delete_nic_operator_namespace {
     let status=0
 
-    kubectl delete namespace "$NIC_OPERATOR_RESOURCES_NAMESPACE"
+    kubectl delete namespace "$(get_nic_operator_resources_namespace)"
     let status=$status+$?
 
-    kubectl delete namespace "$NIC_OPERATOR_NAMESPACE"
+    kubectl delete namespace "$(get_nic_operator_namespace)"
     let status=$status+$?
 
     return $status
@@ -217,7 +217,7 @@ function delete_nic_cluster_policies {
 
     kubectl delete $nic_cluster_policy_name --all --wait=true
 
-    asure_resource_deleted "pods" "$NIC_OPERATOR_RESOURCES_NAMESPACE"
+    asure_resource_deleted "pods" "$(get_nic_operator_resources_namespace)"
 
     sleep 30
 

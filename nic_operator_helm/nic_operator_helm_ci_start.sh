@@ -84,7 +84,7 @@ function deploy_operator {
     sudo apt-get purge -y rdma-core
 
     helm install -f $values_file \
-        -n $NIC_OPERATOR_NAMESPACE \
+        -n $(get_nic_operator_namespace) \
         --create-namespace \
         ${NIC_OPERATOR_HELM_NAME} \
         ./deployment/network-operator/

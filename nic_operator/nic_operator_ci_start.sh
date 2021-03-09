@@ -53,7 +53,7 @@ function deploy_operator_components {
 
     if [[ ! -d $WORKSPACE/mellanox-network-operator/config ]];then
     
-        configure_namespace mlnx-network-operator
+        configure_namespace "$(get_nic_operator_namespace)"
     
         pushd $WORKSPACE/mellanox-network-operator/deploy
     

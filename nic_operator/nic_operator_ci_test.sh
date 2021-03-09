@@ -140,7 +140,7 @@ function configure_common {
     yaml_write 'apiVersion' 'mellanox.com/v1alpha1' "$file_name"
     yaml_write 'kind' 'NicClusterPolicy' "$file_name"
     yaml_write 'metadata.name' "$nic_policy_name" "$file_name"
-    yaml_write 'metadata.namespace' 'mlnx-network-operator' "$file_name"
+    yaml_write 'metadata.namespace' "$(get_nic_operator_namespace)" "$file_name"
 }
 
 function configure_ofed {
