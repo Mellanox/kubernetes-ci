@@ -48,13 +48,19 @@ function configure_helm_values {
 
     yaml_write "nvPeerDriver.deploy" "false" $file_name
 
-    yaml_write "devicePlugin.deploy" "true" $file_name
-    yaml_write "devicePlugin.image" "$DEVICE_PLUGIN_IMAGE" $file_name
-    yaml_write "devicePlugin.repository" "$DEVICE_PLUGIN_REPO" $file_name
-    yaml_write "devicePlugin.version" "$DEVICE_PLUGIN_VERSION" $file_name
+    local rdma_shared_device_plugin_key='devicePlugin'
 
-    yaml_write "devicePlugin.resources[0].name" "rdma_shared_devices_a" $file_name
-    yaml_write "devicePlugin.resources[0].ifNames[0]" "$SRIOV_INTERFACE" $file_name
+    if [[ -z "$(yaml_read spec.$rdma_shared_device_plugin_key $nic_operator_dir/example/crs/mellanox.com_v1alpha1_nicclusterpolicy_cr.yaml)" ]];then
+        local rdma_shared_device_plugin_key='rdmaSharedDevicePlugin'
+    fi
+
+    yaml_write "$rdma_shared_device_plugin_key".deploy "true" $file_name
+    yaml_write "$rdma_shared_device_plugin_key".image "$DEVICE_PLUGIN_IMAGE" $file_name
+    yaml_write "$rdma_shared_device_plugin_key".repository "$DEVICE_PLUGIN_REPO" $file_name
+    yaml_write "$rdma_shared_device_plugin_key".version "$DEVICE_PLUGIN_VERSION" $file_name
+
+    yaml_write "$rdma_shared_device_plugin_key".resources[0].name "rdma_shared_devices_a" $file_name
+    yaml_write "$rdma_shared_device_plugin_key".resources[0].ifNames[0] "$SRIOV_INTERFACE" $file_name
 
     yaml_write "secondaryNetwork.deploy" "true" $file_name
 

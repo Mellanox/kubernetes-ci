@@ -157,9 +157,15 @@ function configure_device_plugin {
     local file_name="$1"
     local rdma_resource_name=${2:-'rdma_shared_devices_a'}
 
-    configure_images_specs "devicePlugin" "$file_name"
+    local rdma_shared_device_plugin_key='devicePlugin'
 
-    yaml_write spec.devicePlugin.config "\
+    if [[ -z "$(yaml_read spec.$rdma_shared_device_plugin_key $nic_operator_dir/example/crs/mellanox.com_v1alpha1_nicclusterpolicy_cr.yaml)" ]];then
+        local rdma_shared_device_plugin_key='rdmaSharedDevicePlugin'
+    fi
+
+    configure_images_specs "$rdma_shared_device_plugin_key" "$file_name"
+
+    yaml_write spec."$rdma_shared_device_plugin_key".config "\
 {
   \"configList\": [{
     \"resourceName\": \"$rdma_resource_name\",
