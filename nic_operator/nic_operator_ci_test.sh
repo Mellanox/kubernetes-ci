@@ -49,7 +49,7 @@ function test_deleting_network_operator {
     local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_ofed
+    configure_ofed "$sample_file"
 
     nic_policy_create "$sample_file"
     let status=status+$?
@@ -133,9 +133,11 @@ function configure_common {
     local file_name="$1"
     local nic_policy_name=${2:-"$NIC_CLUSTER_POLICY_DEFAULT_NAME"}
 
-    if [[ ! -f "$file_name" ]];then
-        touch "$file_name"
+    if [[ -f "$file_name" ]];then
+        rm -f "$file_name"
     fi
+    
+    touch "$file_name"
 
     yaml_write 'apiVersion' 'mellanox.com/v1alpha1' "$file_name"
     yaml_write 'kind' 'NicClusterPolicy' "$file_name"
@@ -150,7 +152,7 @@ function configure_ofed {
 
     modprobe -r rpcrdma
 
-    configure_images_specs "ofedDriver" "$sample_file"
+    configure_images_specs "ofedDriver" "$file_name"
 }
 
 function configure_device_plugin {
@@ -181,7 +183,7 @@ function test_ofed_only {
     local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_ofed
+    configure_ofed "$sample_file"
 
     nic_policy_create "$sample_file"
     let status=status+$?
@@ -212,7 +214,7 @@ function test_ofed_and_rdma {
     local sample_file="$ARTIFACTS"/ofed-rdma-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
-    configure_ofed
+    configure_ofed "$sample_file"
     configure_device_plugin "$sample_file"
 
     nic_policy_create "$sample_file"
