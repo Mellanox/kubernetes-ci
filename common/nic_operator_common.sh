@@ -33,6 +33,10 @@ export RDMA_SHARED_DEVICE_PLUGIN_IMAGE=${RDMA_SHARED_DEVICE_PLUGIN_IMAGE:-'k8s-r
 export RDMA_SHARED_DEVICE_PLUGIN_REPO=${RDMA_SHARED_DEVICE_PLUGIN_REPO:-'harbor.mellanox.com/cloud-orchestration'}
 export RDMA_SHARED_DEVICE_PLUGIN_VERSION=${RDMA_SHARED_DEVICE_PLUGIN_VERSION:-'latest'}
 
+export NV_PEER_DRIVER_IMAGE=${NV_PEER_DRIVER_IMAGE:-'nv-peer-mem-driver'}
+export NV_PEER_DRIVER_REPO=${NV_PEER_DRIVER_REPO:-'harbor.mellanox.com/cloud-orchestration'}
+export NV_PEER_DRIVER_VERSION=${NV_PEER_DRIVER_VERSION:-'1.0-9'}
+
 export SECONDARY_NETWORK_MULTUS_IMAGE=${SECONDARY_NETWORK_MULTUS_IMAGE:-'multus'}
 export SECONDARY_NETWORK_MULTUS_REPO=${SECONDARY_NETWORK_MULTUS_REPO:-'harbor.mellanox.com/cloud-orchestration'}
 export SECONDARY_NETWORK_MULTUS_VERSION=${SECONDARY_NETWORK_MULTUS_VERSION:-'latest'}
@@ -47,6 +51,10 @@ export SECONDARY_NETWORK_IPAM_PLUGIN_VERSION=${SECONDARY_NETWORK_IPAM_PLUGIN_VER
 
 export NIC_OPERATOR_HELM_NAME=${NIC_OPERATOR_HELM_NAME:-'network-operator-helm-ci'}
 export NIC_OPERATOR_CRD_NAME=${NIC_OPERATOR_CRD_NAME:-'nicclusterpolicies.mellanox.com'}
+
+export GPU_OPERATOR_VERSION=${GPU_OPERATOR_VERSION:-'1.5.0'}
+export GPU_OPERATOR_CRD_NAME=${GPU_OPERATOR_CRD_NAME:-'clusterpolicies.nvidia.com'}
+export GPU_OPERATOR_POLICY_NAME=${GPU_OPERATOR_POLICY_NAME:-'cluster-policy'}
 
 function configure_macvlan_custom_resource {
     local file_name="$1"
@@ -233,3 +241,49 @@ function get_nic_operator_resources_namespace {
 
     yaml_read metadata.name "$NIC_OPERATOR_RESOURCES_NAMESPACE_FILE"
 }
+
+function deploy_gpu_operator {
+    local values_file_name="$ARTIFACTS/gpu-operator-values.yaml"
+
+    render_gpu_operator_value "$values_file_name"
+
+    helm repo add nvidia https://nvidia.github.io/gpu-operator
+    helm repo update
+    
+    helm install --version "$GPU_OPERATOR_VERSION" -f "$values_file_name" gpu-operator\
+      nvidia/gpu-operator --wait --devel
+
+    wait_pod_state "nvidia-device-plugin-validation" "Completed"
+    return $?
+}
+
+function get_cluster_policy_state {
+    local resource_name=$1
+
+    local cluster_policy_status=$(kubectl get "$GPU_OPERATOR_CRD_NAME" \
+        "$resource_name" -o yaml)
+
+    yq r - status.state <<< ${cluster_policy_status}
+    return $?
+}
+
+function render_gpu_operator_value {
+    local file="${1:-$ARTIFACTS/gpu-operator-values.yaml}"
+
+    if [[ ! -f "$file" ]];then
+        touch "$file"
+    fi
+
+    yaml_write "node-feature-discovery.config" "\
+sources:
+  pci:
+    deviceLabelFields:
+    - vendor
+    deviceClassWhitelist:
+    - \"03\"
+    - \"02\"
+    - \"0200\"
+    - \"0207\"
+" "$file"
+}
+

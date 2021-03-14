@@ -15,7 +15,7 @@ export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$P
 
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
-export KERNEL_VERSION=${KERNEL_VERSION:-4.15.0-109-generic}
+export KERNEL_VERSION=${KERNEL_VERSION:-$(uname -r)}
 export OS_DISTRO=${OS_DISTRO:-ubuntu}
 export OS_VERSION=${OS_VERSION:-20.04}
 
@@ -129,19 +129,23 @@ function main {
 
     pushd $WORKSPACE
 
-    deploy_k8s_with_multus
+    deploy_k8s_bare
     if [ $? -ne 0 ]; then
         echo "Failed to deploy k8s!"
         exit 1
     fi
-
-    patch_pod_cider_to_node
 
     label_node
 
     deploy_calico
     if [ $? -ne 0 ]; then
         echo "Failed to deploy the calico cni"
+        exit 1
+    fi
+
+    deploy_multus
+    if [ $? -ne 0 ]; then
+        echo "Failed to deploy the multus cni"
         exit 1
     fi
 

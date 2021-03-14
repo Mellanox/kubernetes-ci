@@ -178,6 +178,14 @@ function configure_device_plugin {
 " "$file_name"
 }
 
+function configure_nv_peer_mem {
+    local file_name="$1"
+
+    configure_images_specs "nvPeerDriver" "$file_name"
+    yaml_write spec.nvPeerDriver.gpuDriverSourcePath "/run/nvidia/driver"\
+     "$file_name"
+}
+
 function test_ofed_only {
     status=0
     local sample_file="$ARTIFACTS"/ofed-nic-cluster-policy.yaml
@@ -244,6 +252,61 @@ function test_ofed_and_rdma {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: Couldn't delete ofed-rdma-nic-cluster-policy.yaml!"
+        return $status
+    fi
+}
+
+function test_nv_peer_mem {
+    status=0
+
+    deploy_gpu_operator
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in deploying the GPU operator."
+        return $status
+    fi
+
+    local sample_file="$ARTIFACTS"/ofed-rdma-nv-peer-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+    configure_device_plugin "$sample_file"
+    configure_nv_peer_mem "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    test_ofed_drivers
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Ofed modules failed!"
+        return $status
+    fi
+
+    test_gpu_direct "harbor.mellanox.com/cloud-orchestration/cuda-perftest:Ubuntu20.04-cuda-devel-11.2.1"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: nv-peer-mem driver testing Failed!"
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+
+    undeploy_gpu_operator
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't undeploy the GPU operator!"
         return $status
     fi
 }
@@ -476,6 +539,13 @@ function main {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: Testing deploying OFED and RDMA shared device plugin failed!!"
+        exit_code $status
+    fi
+
+    test_nv_peer_mem
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Testing deploying OFED, RDMA, and nv-peer-mem failed!!"
         exit_code $status
     fi
 
