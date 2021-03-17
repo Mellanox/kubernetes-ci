@@ -82,9 +82,7 @@ golang_install(){
         sudo rm -rf "$go_dir"/go
         sudo tar -C /usr/local -xzf "$go_dir"/"$go_tar"
 
-        sed -i ';/usr/local/go/bin;d' ~/.bashrc
-        echo 'PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-        source ~/.bashrc
+        ln /usr/local/go/bin/go /usr/bin/go
  
         if [[ -z "$(go version)" ]]; then
             echo "Failed to install go!"
@@ -252,6 +250,26 @@ install_helm(){
     ln -s /usr/local/linux-amd64/helm /usr/local/bin/helm
 }
 
+packages_install(){
+    local distro=$(get_distro)
+    local_status=0
+    packages="conntrack"
+
+    echo ""
+    echo "Installing $packages ...."
+
+    if [[ "$distro" == "centos" ]];then
+        yum install -y $packages > /dev/null
+    elif [[ "$distro" == "ubuntu" ]];then
+        sudo apt-get -y install $packages > /dev/null
+    else
+        echo "Unknown distro for installing $packages"
+        return 1
+    fi
+
+    return $local_status
+}
+
 main(){
     status=0
 
@@ -278,6 +296,9 @@ main(){
     install_helm
     let status=$status+$?
 
+    packages_install
+    let status=$status+$?
+
     return $status
 }
 
@@ -289,10 +310,6 @@ if [[ "$status" != "0" ]];then
 else
     echo ""
     echo "Preparing the setup succeed!"
-    echo ""
-    echo "source the ~/.bashrc to load the new PATH variable."
-    echo ""
-    echo "    #source ~/.bashrc"
     echo ""
 fi
 
