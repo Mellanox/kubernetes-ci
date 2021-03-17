@@ -250,6 +250,26 @@ install_helm(){
     ln -s /usr/local/linux-amd64/helm /usr/local/bin/helm
 }
 
+packages_install(){
+    local distro=$(get_distro)
+    local_status=0
+    packages="conntrack"
+
+    echo ""
+    echo "Installing $packages ...."
+
+    if [[ "$distro" == "centos" ]];then
+        yum install -y $packages > /dev/null
+    elif [[ "$distro" == "ubuntu" ]];then
+        sudo apt-get -y install $packages > /dev/null
+    else
+        echo "Unknown distro for installing $packages"
+        return 1
+    fi
+
+    return $local_status
+}
+
 main(){
     status=0
 
@@ -274,6 +294,9 @@ main(){
     let status=$status+$?
 
     install_helm
+    let status=$status+$?
+
+    packages_install
     let status=$status+$?
 
     return $status
