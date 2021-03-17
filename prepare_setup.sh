@@ -82,9 +82,7 @@ golang_install(){
         sudo rm -rf "$go_dir"/go
         sudo tar -C /usr/local -xzf "$go_dir"/"$go_tar"
 
-        sed -i ';/usr/local/go/bin;d' ~/.bashrc
-        echo 'PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-        source ~/.bashrc
+        ln /usr/local/go/bin/go /usr/bin/go
  
         if [[ -z "$(go version)" ]]; then
             echo "Failed to install go!"
@@ -289,10 +287,6 @@ if [[ "$status" != "0" ]];then
 else
     echo ""
     echo "Preparing the setup succeed!"
-    echo ""
-    echo "source the ~/.bashrc to load the new PATH variable."
-    echo ""
-    echo "    #source ~/.bashrc"
     echo ""
 fi
 
