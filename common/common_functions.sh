@@ -415,9 +415,8 @@ function check_resource_state {
     kubectl get $resource_kind -A | grep $resource_name | grep -i $state
 }
 
-function deploy_k8s_with_multus {
+function deploy_k8s_with_multus_without_cni_plugins {
 
-    network_plugins_install
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Failed to install container networking plugins!!"
@@ -448,6 +447,11 @@ function deploy_k8s_with_multus {
         popd
         return $status
     fi
+}
+
+function deploy_k8s_with_multus {
+    network_plugins_install
+    deploy_k8s_with_multus_without_cni_plugins
 }
 
 function deploy_multus {
