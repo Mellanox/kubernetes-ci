@@ -89,6 +89,14 @@ function deploy_operator {
 
     sudo apt-get purge -y rdma-core
 
+    # Install charts from 3rd-party repositories. Errors for empty reposetories won't affect installation.
+    cd deployment/network-operator
+    yq '.dependencies[] | "\(.name) \(.repository)"'  Chart.yaml |  tr -d '"' | xargs -t  -L 1 helm repo add
+
+    helm repo update
+    helm dependency build
+    cd -
+
     helm install -f $values_file \
         -n $(get_nic_operator_namespace) \
         --create-namespace \
