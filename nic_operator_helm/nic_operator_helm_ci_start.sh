@@ -94,6 +94,12 @@ function deploy_operator {
         --create-namespace \
         ${NIC_OPERATOR_HELM_NAME} \
         ./deployment/network-operator/
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Failed to install the network operator using helm"
+        popd
+        return $status
+    fi
 
     wait_pod_state "${NIC_OPERATOR_HELM_NAME}" "Running"
     let status=$status+$?
@@ -108,7 +114,8 @@ function deploy_operator {
     unlabel_master
 
     wait_nic_policy_states "" "state-ofed"
-    if [ "$?" != 0 ]; then
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
         echo "Timed out waiting for operator to become running"
         popd
         return $status
