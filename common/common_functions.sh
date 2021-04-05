@@ -122,6 +122,10 @@ get_distro(){
     grep ^NAME= /etc/os-release | cut -d'=' -f2 -s | tr -d '"' | tr [:upper:] [:lower:] | cut -d" " -f 1
 }
 
+get_distro_version(){
+    grep ^VERSION_ID= /etc/os-release | cut -d'=' -f2 -s | tr -d '"'
+}
+
 configure_firewall(){
     local os_distro=$(get_distro)
     if [[ "$os_distro" == "ubuntu" ]];then
