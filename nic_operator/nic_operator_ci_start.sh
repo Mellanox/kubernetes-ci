@@ -28,7 +28,12 @@ function download_and_build {
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
     build_nic_operator_image
-    return $?
+    let status=status+$?
+
+    pull_network_operator_images
+    let status=status+$?
+
+    return $status
 }
 
 function configure_namespace {

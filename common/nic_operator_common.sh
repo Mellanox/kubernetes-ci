@@ -15,39 +15,40 @@ export MACVLAN_NETWORK_DEFAULT_NAME=${MACVLAN_NETWORK_DEFAULT_NAME:-'example-mac
 export nic_operator_dir=$WORKSPACE/mellanox-network-operator/
 export NIC_OPERATOR_NAMESPACE_FILE=${NIC_OPERATOR_NAMESPACE_FILE:-"$nic_operator_dir/deploy/operator-ns.yaml"}
 export NIC_OPERATOR_RESOURCES_NAMESPACE_FILE=${NIC_OPERATOR_RESOURCES_NAMESPACE_FILE:-"$nic_operator_dir/deploy/operator-resources-ns.yaml"}
+export IMAGES_SRC_FILE="$nic_operator_dir/deployment/network-operator/values.yaml"
 
 export NIC_OPERATOR_REPO=${NIC_OPERATOR_REPO:-https://github.com/Mellanox/network-operator}
 export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-''}
 export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
 export NIC_OPERATOR_HARBOR_IMAGE=${NIC_OPERATOR_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/network-operator}
 
-export OFED_DRIVER_IMAGE=${OFED_DRIVER_IMAGE:-'mofed'}
-export OFED_DRIVER_REPO=${OFED_DRIVER_REPO:-'harbor.mellanox.com/sw-linux-devops'}
-export OFED_DRIVER_VERSION=${OFED_DRIVER_VERSION:-'5.2-0.5.7.0'}
+export OFED_DRIVER_IMAGE=${OFED_DRIVER_IMAGE:-''}
+export OFED_DRIVER_REPO=${OFED_DRIVER_REPO:-''}
+export OFED_DRIVER_VERSION=${OFED_DRIVER_VERSION:-''}
 
-export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-'k8s-rdma-shared-device-plugin'}
-export DEVICE_PLUGIN_REPO=${DEVICE_PLUGIN_REPO:-'harbor.mellanox.com/cloud-orchestration'}
-export DEVICE_PLUGIN_VERSION=${DEVICE_PLUGIN_VERSION:-'latest'}
+export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-''}
+export DEVICE_PLUGIN_REPO=${DEVICE_PLUGIN_REPO:-''}
+export DEVICE_PLUGIN_VERSION=${DEVICE_PLUGIN_VERSION:-''}
 
-export RDMA_SHARED_DEVICE_PLUGIN_IMAGE=${RDMA_SHARED_DEVICE_PLUGIN_IMAGE:-'k8s-rdma-shared-device-plugin'}
-export RDMA_SHARED_DEVICE_PLUGIN_REPO=${RDMA_SHARED_DEVICE_PLUGIN_REPO:-'harbor.mellanox.com/cloud-orchestration'}
-export RDMA_SHARED_DEVICE_PLUGIN_VERSION=${RDMA_SHARED_DEVICE_PLUGIN_VERSION:-'latest'}
+export RDMA_SHARED_DEVICE_PLUGIN_IMAGE=${RDMA_SHARED_DEVICE_PLUGIN_IMAGE:-''}
+export RDMA_SHARED_DEVICE_PLUGIN_REPO=${RDMA_SHARED_DEVICE_PLUGIN_REPO:-''}
+export RDMA_SHARED_DEVICE_PLUGIN_VERSION=${RDMA_SHARED_DEVICE_PLUGIN_VERSION:-''}
 
-export NV_PEER_DRIVER_IMAGE=${NV_PEER_DRIVER_IMAGE:-'nv-peer-mem-driver'}
-export NV_PEER_DRIVER_REPO=${NV_PEER_DRIVER_REPO:-'harbor.mellanox.com/cloud-orchestration'}
-export NV_PEER_DRIVER_VERSION=${NV_PEER_DRIVER_VERSION:-'1.0-9'}
+export NV_PEER_DRIVER_IMAGE=${NV_PEER_DRIVER_IMAGE:-''}
+export NV_PEER_DRIVER_REPO=${NV_PEER_DRIVER_REPO:-''}
+export NV_PEER_DRIVER_VERSION=${NV_PEER_DRIVER_VERSION:-''}
 
-export SECONDARY_NETWORK_MULTUS_IMAGE=${SECONDARY_NETWORK_MULTUS_IMAGE:-'multus'}
-export SECONDARY_NETWORK_MULTUS_REPO=${SECONDARY_NETWORK_MULTUS_REPO:-'harbor.mellanox.com/cloud-orchestration'}
-export SECONDARY_NETWORK_MULTUS_VERSION=${SECONDARY_NETWORK_MULTUS_VERSION:-'latest'}
+export SECONDARY_NETWORK_MULTUS_IMAGE=${SECONDARY_NETWORK_MULTUS_IMAGE:-''}
+export SECONDARY_NETWORK_MULTUS_REPO=${SECONDARY_NETWORK_MULTUS_REPO:-''}
+export SECONDARY_NETWORK_MULTUS_VERSION=${SECONDARY_NETWORK_MULTUS_VERSION:-''}
 
-export SECONDARY_NETWORK_CNI_PLUGINS_IMAGE=${SECONDARY_NETWORK_CNI_PLUGINS_IMAGE:-'containernetworking-plugins'}
-export SECONDARY_NETWORK_CNI_PLUGINS_REPO=${SECONDARY_NETWORK_CNI_PLUGINS_REPO:-'harbor.mellanox.com/cloud-orchestration'}
-export SECONDARY_NETWORK_CNI_PLUGINS_VERSION=${SECONDARY_NETWORK_CNI_PLUGINS_VERSION:-'latest'}
+export SECONDARY_NETWORK_CNI_PLUGINS_IMAGE=${SECONDARY_NETWORK_CNI_PLUGINS_IMAGE:-''}
+export SECONDARY_NETWORK_CNI_PLUGINS_REPO=${SECONDARY_NETWORK_CNI_PLUGINS_REPO:-''}
+export SECONDARY_NETWORK_CNI_PLUGINS_VERSION=${SECONDARY_NETWORK_CNI_PLUGINS_VERSION:-''}
 
-export SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE=${SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE:-'whereabouts'}
-export SECONDARY_NETWORK_IPAM_PLUGIN_REPO=${SECONDARY_NETWORK_IPAM_PLUGIN_REPO:-'harbor.mellanox.com/cloud-orchestration'}
-export SECONDARY_NETWORK_IPAM_PLUGIN_VERSION=${SECONDARY_NETWORK_IPAM_PLUGIN_VERSION:-'latest'}
+export SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE=${SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE:-''}
+export SECONDARY_NETWORK_IPAM_PLUGIN_REPO=${SECONDARY_NETWORK_IPAM_PLUGIN_REPO:-''}
+export SECONDARY_NETWORK_IPAM_PLUGIN_VERSION=${SECONDARY_NETWORK_IPAM_PLUGIN_VERSION:-''}
 
 export NIC_OPERATOR_HELM_NAME=${NIC_OPERATOR_HELM_NAME:-'network-operator-helm-ci'}
 export NIC_OPERATOR_CRD_NAME=${NIC_OPERATOR_CRD_NAME:-'nicclusterpolicies.mellanox.com'}
@@ -287,3 +288,87 @@ sources:
 " "$file"
 }
 
+function pull_general_component_image {
+    local component_key="$1"
+    local file="$2"
+
+    local image_repo=$(yaml_read "${component_key}.repository" "$file")
+    local image_name=$(yaml_read "${component_key}.image" "$file")
+    local image_tag=$(yaml_read "${component_key}.version" "$file")
+
+    local image="${image_repo}/${image_name}:${image_tag}"
+
+    docker pull $image
+}
+
+function pull_ofed_container_image {
+    local mofed_key="$1"
+    local file="$2"
+
+    local image_repo=$(yaml_read "${mofed_key}.repository" "$file")
+    local image_name=$(yaml_read "${mofed_key}.image" "$file")
+    local image_version=$(yaml_read "${mofed_key}.version" "$file")
+
+    local image="${image_repo}/${image_name}-${image_version}:$(get_distro)$(get_distro_version)-amd64"
+
+    docker pull $image
+}
+
+function pull_nvpeer_container_image {
+    local nvpeer_key="$1"
+    local file="$2"
+
+    local image_repo=$(yaml_read "${nvpeer_key}.repository" "$file")
+    local image_name=$(yaml_read "${nvpeer_key}.image" "$file")
+    local image_version=$(yaml_read "${nvpeer_key}.version" "$file")
+
+    local image="${image_repo}/${image_name}-${image_version}:amd64-$(get_distro)$(get_distro_version)"
+
+    docker pull $image
+}
+
+function pull_network_operator_images {
+    pull_ofed_container_image "ofedDriver" "$IMAGES_SRC_FILE"
+
+    pull_general_component_image "rdmaSharedDevicePlugin" "$IMAGES_SRC_FILE"
+
+    pull_nvpeer_container_image "nvPeerDriver" "$IMAGES_SRC_FILE"
+
+    pull_general_component_image "secondaryNetwork.cniPlugins" "$IMAGES_SRC_FILE"
+
+    pull_general_component_image "secondaryNetwork.multus" "$IMAGES_SRC_FILE"
+
+    pull_general_component_image "secondaryNetwork.ipamPlugin" "$IMAGES_SRC_FILE"
+}
+
+function configure_images_variable {
+    local key="$1"
+
+    local image="$(yaml_read "${key}.image" "$IMAGES_SRC_FILE")"
+    local repo="$(yaml_read "${key}.repository" "$IMAGES_SRC_FILE")"
+    local version="$(yaml_read "${key}.version" "$IMAGES_SRC_FILE")"
+
+    local upper_case_key="$(sed 's/[A-Z]/\.\0/g' <<< $key | tr "." "_" | tr '[:lower:]' '[:upper:]')"
+
+    local image_variable="${upper_case_key}_IMAGE"
+    local repo_variable="${upper_case_key}_REPO"
+    local version_variable="${upper_case_key}_VERSION"
+
+    export ${image_variable}="$image"
+    export ${repo_variable}="$repo"
+    export ${version_variable}="$version"
+}
+
+function set_network_operator_images_variables {
+    configure_images_variable "ofedDriver"
+
+    configure_images_variable "rdmaSharedDevicePlugin"
+
+    configure_images_variable "nvPeerDriver"
+
+    configure_images_variable "secondaryNetwork.cniPlugins"
+
+    configure_images_variable "secondaryNetwork.multus"
+
+    configure_images_variable "secondaryNetwork.ipamPlugin"
+}

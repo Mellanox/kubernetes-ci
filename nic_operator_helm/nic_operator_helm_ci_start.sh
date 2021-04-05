@@ -26,7 +26,14 @@ function download_and_build {
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 
     build_nic_operator_image
-    return $?
+    let status=$status+$?
+
+    pull_network_operator_images
+    let status=$status+$?
+
+    set_network_operator_images_variables
+
+    return $status
 }
 
 function configure_helm_values {
@@ -55,9 +62,9 @@ function configure_helm_values {
     fi
 
     yaml_write "$rdma_shared_device_plugin_key".deploy "true" $file_name
-    yaml_write "$rdma_shared_device_plugin_key".image "$DEVICE_PLUGIN_IMAGE" $file_name
-    yaml_write "$rdma_shared_device_plugin_key".repository "$DEVICE_PLUGIN_REPO" $file_name
-    yaml_write "$rdma_shared_device_plugin_key".version "$DEVICE_PLUGIN_VERSION" $file_name
+    yaml_write "$rdma_shared_device_plugin_key".image "$RDMA_SHARED_DEVICE_PLUGIN_IMAGE" $file_name
+    yaml_write "$rdma_shared_device_plugin_key".repository "$RDMA_SHARED_DEVICE_PLUGIN_REPO" $file_name
+    yaml_write "$rdma_shared_device_plugin_key".version "$RDMA_SHARED_DEVICE_PLUGIN_VERSION" $file_name
 
     yaml_write "$rdma_shared_device_plugin_key".resources[0].name "rdma_shared_devices_a" $file_name
     yaml_write "$rdma_shared_device_plugin_key".resources[0].ifNames[0] "$SRIOV_INTERFACE" $file_name

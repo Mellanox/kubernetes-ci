@@ -518,6 +518,8 @@ function main {
         export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n1 | awk '{print $1}') | awk '{print $9}')
     fi
 
+    set_network_operator_images_variables
+
     test_ofed_only
     let status=status+$?
     if [ "$status" != 0 ]; then
