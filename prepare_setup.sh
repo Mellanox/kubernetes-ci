@@ -4,7 +4,7 @@ go_version=""
 
 go_dir=/usr/local
 
-helm_version="v3.4.0"
+helm_version="v3.5.3"
 helm_package_dir_name='helm'
 
 ##################################################
