@@ -98,7 +98,14 @@ function deploy_operator {
 
     # Install charts from 3rd-party repositories. Errors for empty reposetories won't affect installation.
     cd deployment/network-operator
-    yq '.dependencies[] | "\(.name) \(.repository)"'  Chart.yaml |  tr -d '"' | xargs -t  -L 1 helm repo add
+    local charts=$(yq r Chart.yaml dependencies  -l)
+    for index in $(seq 0 "$charts"); do
+        local chart=$(yq r Chart.yaml dependencies[$index].name)
+        local repo=$(yq r Chart.yaml dependencies[$index].repository)
+        if [[ ! -z "$repo" ]]; then
+                helm repo add $chart $repo
+        fi
+    done
 
     helm repo update
     helm dependency build
