@@ -38,6 +38,7 @@ it do the following:
     - configure /etc/sysctl.conf
     - configure /etc/hosts
     - install yq
+    - install ansible
 
 options:
 
@@ -270,6 +271,16 @@ packages_install(){
     return $local_status
 }
 
+pip_packages_install(){
+    packages="ansible==3.2.0"
+
+    echo ""
+    echo "Installing pip packages $packages ...."
+
+    pip3 install -U pip setuptools
+    pip3 install $packages
+}
+
 main(){
     status=0
 
@@ -297,6 +308,9 @@ main(){
     let status=$status+$?
 
     packages_install
+    let status=$status+$?
+
+    pip_packages_install
     let status=$status+$?
 
     return $status
