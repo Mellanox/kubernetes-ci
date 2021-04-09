@@ -5,7 +5,7 @@ set -e
 KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea")
 KIND_CI_PHASES=("prepare-ci-environment" "deploy-kind" "utilities" "deploy-project" "test" "undeploy-project" "undeploy-kind")
 # SUPPORTED_PHASES is temporally used until all phases are supported
-SUPPORTED_PHASES=("prepare-ci-environment")
+SUPPORTED_PHASES=("prepare-ci-environment" "deploy-kind")
 export PHASES_TO_RUN=("${SUPPORTED_PHASES[@]}")
 
 usage() {

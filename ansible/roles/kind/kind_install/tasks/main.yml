@@ -1,0 +1,25 @@
+---
+- name: Query local Kind version
+  command:
+    cmd: kind version -q
+  ignore_errors: true
+  register: kind_version
+- name: Query upstream latest Kind version
+  uri:
+    url: https://api.github.com/repos/kubernetes-sigs/kind/releases/latest
+    status_code: 200
+    body_format: json
+  ignore_errors: true
+  register: kind_latest_release
+- name: Install/Update Kind to latest release
+  block:
+    - get_url:
+        url: https://github.com/kubernetes-sigs/kind/releases/download/{{kind_latest_release.json.name}}/kind-linux-amd64
+        dest: /usr/local/bin/kind
+        mode: "555"
+    - command:
+        cmd: kind --version
+      register: new_kind_version
+    - debug:
+        var: new_kind_version.stdout
+  when: "kind_version is failed or kind_version.stdout is version(kind_latest_release.json.name[1:], '<')"
