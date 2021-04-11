@@ -1,3 +1,6 @@
 project: "{{ lookup('env', 'PROJECT') }}"
 workspace: "{{ lookup('env', 'WORKSPACE') }}"
 artifacts: "{{ workspace+ '/artifacts' }}"
+num_worker: "{{ lookup('env', 'KIND_NUM_WORKER') }}"
+kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+kind_config: "{{ lookup('env', 'KIND_CONFIG') }}"
