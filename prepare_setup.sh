@@ -290,6 +290,35 @@ install_ansible_modules(){
     ansible-galaxy collection install $modules
 }
 
+skopeo_install(){
+    local distro=$(get_distro)
+
+    echo "Installing skopeo from source..."
+    echo ""
+
+
+    echo "Installing required packages..."
+    if [[ "$distro" == "centos" ]];then
+        yum install -y gpgme-devel libassuan-devel btrfs-progs-devel device-mapper-devel > /dev/null
+    elif [[ "$distro" == "ubuntu" ]];then
+        sudo apt-get install -y libgpgme-dev libassuan-dev libbtrfs-dev libdevmapper-dev > /dev/null
+    else
+        echo "Unknown distro for installing $packages"
+        return 1
+    fi
+
+    echo "Clonning the project..."
+    git clone https://github.com/containers/skopeo
+    pushd skopeo
+    make bin/skopeo
+    make install
+    popd
+    rm -rf skopeo
+
+    command skopeo
+    return $?
+}
+
 main(){
     status=0
 
@@ -323,6 +352,9 @@ main(){
     let status=$status+$?
 
     install_ansible_modules
+    let status=$status+$?
+
+    skopeo_install
     let status=$status+$?
 
     return $status
