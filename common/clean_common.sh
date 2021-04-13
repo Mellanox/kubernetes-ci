@@ -31,6 +31,12 @@ function stop_k8s {
     rm -rf $HOME/.kube/config
 }
 
+function stop_kind_cluster {
+    local project="$1"
+
+    ./run_kind_ci.sh --project "$project" --phases undeploy-kind
+}
+
 function asure_all_stoped {
     kill $(ps -ef |grep local-up-cluster.sh|grep $WORKSPACE|awk '{print $2}')
     kill $(pgrep sriovdp)
