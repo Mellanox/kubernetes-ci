@@ -170,6 +170,17 @@ function collect_services_logs {
     fi
 }
 
+function collect_vf_switcher_logs {
+    if [[ -f "${LOGDIR}/start-time.log" ]];then
+        echo "Collecting the vf-switcher Logs..."
+        get_service_log "vf-switcher"
+    else
+        echo ""
+        echo "No \"${LOGDIR}/start-time.log\", Assuming job did not start."
+        echo ""
+    fi
+}
+
 function get_pod_log {
     pod_line="$1"
     pod_namespace="$(awk '{print $1}' <<< ${pod_line})"
