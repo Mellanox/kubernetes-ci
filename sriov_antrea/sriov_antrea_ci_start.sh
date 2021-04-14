@@ -75,9 +75,13 @@ EOF
     if [[ -z "${ANTREA_CNI_PR}${ANTREA_CNI_BRANCH}" ]];then
         change_image_name $ANTREA_CNI_HARBOR_IMAGE antrea/antrea-ubuntu
     fi
-    
+
+    cp $WORKSPACE/antrea-cni/build/yamls/antrea.yml $ARTIFACTS
+
+    sed -i "s;\(^ *image\:\).*;\1 antrea/antrea-ubuntu;" $ARTIFACTS/antrea.yml
+ 
     if [[ -z "$(grep hw-offload $WORKSPACE/antrea-cni/build/yamls/antrea.yml)" ]];then
-        sed -i '/start_ovs/a\        - --hw-offload' $WORKSPACE/antrea-cni/build/yamls/antrea.yml
+        sed -i '/start_ovs/a\        - --hw-offload' $ARTIFACTS/antrea.yml
     fi
 
     cat > $ARTIFACTS/antrea-crd.yaml <<EOF
@@ -164,7 +168,7 @@ kubectl create -f $ARTIFACTS/configMap.yaml
 kubectl create -f $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}')
 
 
-kubectl create -f $WORKSPACE/antrea-cni/build/yamls/antrea.yml
+kubectl create -f $ARTIFACTS/antrea.yml
 
 cp $ARTIFACTS/antrea-crd.yaml $(ls -l $WORKSPACE/sriov-network-device-plugin/deployments/*/sriovdp-daemonset.yaml|tail -n1|awk '{print $NF}') $ARTIFACTS/
 screen -S multus_sriovdp -d -m  $WORKSPACE/sriov-network-device-plugin/build/sriovdp -logtostderr 10 2>&1|tee > $LOGDIR/sriovdp.log
