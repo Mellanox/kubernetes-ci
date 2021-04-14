@@ -1,0 +1,3 @@
+project: "{{ lookup('env', 'PROJECT') }}"
+workspace: "{{ lookup('env', 'WORKSPACE') }}"
+artifacts: "{{ workspace+ '/artifacts' }}"

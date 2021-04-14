@@ -1,0 +1,2 @@
+[kind_nodes]
+localhost ansible_connection=local
