@@ -113,7 +113,7 @@ function test_rdma_only {
 
     sleep 10
 
-    test_rdma_plugin
+    test_rdma_plugin "" "$MACVLAN_NETWORK_DEFAULT_NAME"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: RDMA device plugin testing Failed!"
@@ -143,6 +143,10 @@ function configure_common {
     yaml_write 'kind' 'NicClusterPolicy' "$file_name"
     yaml_write 'metadata.name' "$nic_policy_name" "$file_name"
     yaml_write 'metadata.namespace' "$(get_nic_operator_namespace)" "$file_name"
+
+    configure_images_specs "secondaryNetwork.multus" "$file_name"
+    configure_images_specs "secondaryNetwork.cniPlugins" "$file_name"
+    configure_images_specs "secondaryNetwork.ipamPlugin" "$file_name"
 }
 
 function configure_ofed {
@@ -241,7 +245,7 @@ function test_ofed_and_rdma {
         return $status
     fi
 
-    test_rdma_plugin
+    test_rdma_plugin "" "$MACVLAN_NETWORK_DEFAULT_NAME"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: RDMA device plugin testing Failed!"
@@ -289,7 +293,8 @@ function test_nv_peer_mem {
         return $status
     fi
 
-    test_gpu_direct "harbor.mellanox.com/cloud-orchestration/cuda-perftest:Ubuntu20.04-cuda-devel-11.2.1"
+    test_gpu_direct "harbor.mellanox.com/cloud-orchestration/cuda-perftest:Ubuntu20.04-cuda-devel-11.2.1"\
+        "$MACVLAN_NETWORK_DEFAULT_NAME"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: nv-peer-mem driver testing Failed!"
@@ -314,34 +319,11 @@ function test_nv_peer_mem {
 function test_secondary_network {
     status=0
     local sample_file="$ARTIFACTS"/seconday-network-nic-cluster-policy.yaml
-    local multus_file="$WORKSPACE/multus-cni/images/multus-daemonset.yml"
-    local macvlan_bin="$WORKSPACE/plugins/bin/macvlan"
 
     echo ""
     echo "Testing Secondary networks..."
 
-    if [[ -f "$multus_file" ]];then
-        kubectl delete -f "$multus_file"
-    fi
-
-    sudo rm -f "${CNI_BIN_DIR}/macvlan"
-    sudo rm -f "${CNI_BIN_DIR}/multus"
-    sudo rm -f "${CNI_BIN_DIR}/whereabouts"
-
-    if [[ -d "$WORKSPACE/mellanox-network-operator/config" ]];then
-        network_attachment_definition_file="$WORKSPACE/mellanox-network-operator/config/crd/bases/k8s.cni.cncf.io_networkattachmentdefinitions_crd.yaml"
-    else
-        network_attachment_definition_file="$WORKSPACE/mellanox-network-operator/deploy/crds/k8s.cni.cncf.io_networkattachmentdefinitions_crd.yaml"
-    fi
-
-    kubectl create -f "$network_attachment_definition_file"
-
-    unlabel_master
-
     configure_common "$sample_file"
-    configure_images_specs "secondaryNetwork.multus" "$sample_file"
-    configure_images_specs "secondaryNetwork.cniPlugins" "$sample_file"
-    configure_images_specs "secondaryNetwork.ipamPlugin" "$sample_file"
 
     nic_policy_create "$sample_file"
     let status=status+$?
@@ -393,15 +375,6 @@ function test_secondary_network {
         echo "Error: Couldn't delete $sample_file!"
         return $status
     fi
-
-    # Note(abdallahyas): Redeploy the multus in the system to bring
-    # back the secondary network capabilities to the system.
-
-    multus_configuration
-
-    cp "$macvlan_bin" "$CNI_BIN_DIR"/
-
-    create_macvlan_net
 
     return 0
 

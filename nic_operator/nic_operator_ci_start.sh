@@ -148,18 +148,6 @@ function main {
         exit 1
     fi
 
-    deploy_multus
-    if [ $? -ne 0 ]; then
-        echo "Failed to deploy the multus cni"
-        exit 1
-    fi
-
-    create_macvlan_net
-    if [ $? -ne 0 ]; then
-        echo "Failed to create the macvlan net"
-        exit 1
-    fi
-
     download_and_build
     if [ $? -ne 0 ]; then
         echo "Failed to download and build components"
@@ -171,6 +159,11 @@ function main {
         echo "Failed to run the operator components"
         exit 1
     fi
+
+    unlabel_master
+
+    configure_macvlan_custom_resource "$ARTIFACTS/example-macvlan-cr.yaml"
+    kubectl create -f "$ARTIFACTS/example-macvlan-cr.yaml"
 
     echo "All code in $WORKSPACE"
     echo "All logs $LOGDIR"
