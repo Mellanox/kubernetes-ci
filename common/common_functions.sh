@@ -571,7 +571,7 @@ function create_test_pod {
 
 function create_rdma_test_pod {
     local pod_name=$1
-    local rdma_resource_name=rdma/$2
+    local rdma_resource_name="$2"
     local image="$3"
     local network="$4"
 
@@ -659,8 +659,8 @@ function render_test_pod_rdma_resources {
     yaml_write spec.containers[0].resources.requests "" $file
     yaml_write spec.containers[0].resources.limits "" $file
 
-    yaml_write spec.containers[0].resources.requests.$rdma_resource_name 1 $file
-    yaml_write spec.containers[0].resources.limits.$rdma_resource_name 1 $file
+    yaml_write spec.containers[0].resources.requests[$rdma_resource_name] 1 $file
+    yaml_write spec.containers[0].resources.limits[$rdma_resource_name] 1 $file
 }
 
 function render_test_pod_gpu_resources {
@@ -856,19 +856,20 @@ function test_rdma_plugin {
     local test_pod_2_name='test-pod-2'
     local image="$1"
     local network="$2"
+    local requested_resources="$3"
 
     echo "Testing RDMA shared mode device plugin."
     echo ""
     echo "Creating testing pods."
 
-    create_rdma_test_pod $test_pod_1_name rdma_shared_devices_a "$image" "$network"
+    create_rdma_test_pod $test_pod_1_name "$requested_resources" "$image" "$network"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: error in creating $test_pod_1_name!"
         return $status
     fi
 
-    create_rdma_test_pod $test_pod_2_name rdma_shared_devices_a "$image" "$network"
+    create_rdma_test_pod $test_pod_2_name "$requested_resources" "$image" "$network"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: error in creating $test_pod_2_name!"

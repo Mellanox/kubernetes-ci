@@ -11,6 +11,7 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
 export MACVLAN_NETWORK_DEFAULT_NAME=${MACVLAN_NETWORK_DEFAULT_NAME:-'example-macvlan'}
+export HOSTDEVICE_NETWORK_DEFAULT_NAME=${HOSTDEVICE_NETWORK_DEFAULT_NAME:-'example-hostdevice-network'}
 
 export nic_operator_dir=$WORKSPACE/mellanox-network-operator/
 export NIC_OPERATOR_NAMESPACE_FILE=${NIC_OPERATOR_NAMESPACE_FILE:-"$nic_operator_dir/deploy/operator-ns.yaml"}
@@ -50,6 +51,10 @@ export SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE=${SECONDARY_NETWORK_IPAM_PLUGIN_IMAGE
 export SECONDARY_NETWORK_IPAM_PLUGIN_REPO=${SECONDARY_NETWORK_IPAM_PLUGIN_REPO:-''}
 export SECONDARY_NETWORK_IPAM_PLUGIN_VERSION=${SECONDARY_NETWORK_IPAM_PLUGIN_VERSION:-''}
 
+export SRIOV_DEVICE_PLUGIN_IMAGE=${SRIOV_DEVICE_PLUGIN_IMAGE:-''}
+export SRIOV_DEVICE_PLUGIN_REPO=${SRIOV_DEVICE_PLUGIN_REPO:-''}
+export SRIOV_DEVICE_PLUGIN_VERSION=${SRIOV_DEVICE_PLUGIN_VERSION:-''}
+
 export NIC_OPERATOR_HELM_NAME=${NIC_OPERATOR_HELM_NAME:-'network-operator-helm-ci'}
 export NIC_OPERATOR_CRD_NAME=${NIC_OPERATOR_CRD_NAME:-'nicclusterpolicies.mellanox.com'}
 
@@ -76,6 +81,41 @@ function configure_macvlan_custom_resource {
     yaml_write "spec.master" "$SRIOV_INTERFACE" "$file_name"
     yaml_write "spec.mode" "bridge" "$file_name"
     yaml_write "spec.mtu" "1500" "$file_name"
+
+    yaml_write "spec.ipam" "\
+{
+  \"type\": \"whereabouts\",
+  \"datastore\": \"kubernetes\",
+  \"kubernetes\": {
+    \"kubeconfig\": \"/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig\"
+  },
+  \"range\": \"192.168.2.225/28\",
+  \"exclude\": [
+    \"192.168.2.229/30\",
+    \"192.168.2.236/32\"
+  ],
+  \"log_file\" : \"/var/log/whereabouts.log\",
+  \"log_level\" : \"info\",
+  \"gateway\": \"192.168.2.1\"
+}
+" "$file_name"
+
+}
+
+function configure_hostdevice_network_custom_resource {
+    local hostdevice_resource_name="$1"
+    local file_name="$2"
+
+    if [[ ! -f "$file_name" ]];then
+        touch "$file_name"
+    fi
+
+    yaml_write "apiVersion" "mellanox.com/v1alpha1" "$file_name"
+    yaml_write "kind" "HostDeviceNetwork" "$file_name"
+    yaml_write "metadata.name" "$HOSTDEVICE_NETWORK_DEFAULT_NAME" "$file_name"
+
+    yaml_write "spec.networkNamespace" "default" "$file_name"
+    yaml_write "spec.resourceName" "$hostdevice_resource_name" "$file_name"
 
     yaml_write "spec.ipam" "\
 {
@@ -363,6 +403,8 @@ function set_network_operator_images_variables {
     configure_images_variable "ofedDriver"
 
     configure_images_variable "rdmaSharedDevicePlugin"
+
+    configure_images_variable "sriovDevicePlugin"
 
     configure_images_variable "nvPeerDriver"
 

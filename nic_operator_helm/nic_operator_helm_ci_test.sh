@@ -36,7 +36,7 @@ function test_ofed_and_rdma {
         return $status
     fi
 
-    test_rdma_plugin "" "example-macvlan"
+    test_rdma_plugin "" "example-macvlan" "rdma/rdma_shared_devices_a"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: RDMA device plugin testing Failed!"
