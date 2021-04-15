@@ -1,0 +1,7 @@
+---
+- name: Destroy Kind Cluster
+  hosts: kind_nodes
+  become: true
+  remote_user: root
+  roles:
+    - kind/kind_cluster_destroy

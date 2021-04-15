@@ -1,0 +1,13 @@
+---
+- name: Clean workspace
+  file:
+    path: "{{workspace}}"
+    state: absent
+- name: Create workspace directory
+  file:
+    path: "{{workspace}}"
+    state: directory
+- name: Create artifacts directory
+  file:
+    path: "{{artifacts}}"
+    state: directory
