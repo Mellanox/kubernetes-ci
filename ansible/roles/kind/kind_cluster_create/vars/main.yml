@@ -1,2 +1,3 @@
 ---
 deploy_kind_config: "{{ kind_config }}"
+render_kind_config: '{{ kind_config == "" }}'
