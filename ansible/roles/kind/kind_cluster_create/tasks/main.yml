@@ -7,18 +7,18 @@
         suffix: build
       register: kind_conf_temp_dir
     - set_fact:
-        kind_rendered_config: "{{kind_conf_temp_dir.path}}/kind.yaml"
+        kind_rendered_config: "{{ kind_conf_temp_dir.path }}/kind.yaml"
     - name: Render kind configuration
       template:
         src: kind.yaml.j2
-        dest: "{{kind_rendered_config}}"
+        dest: "{{ kind_rendered_config }}"
     - name: Copy rendered kind configuration to artifacts
       copy:
-        src: "{{kind_rendered_config}}"
-        dest: "{{artifacts}}/kind.yaml"
+        src: "{{ kind_rendered_config }}"
+        dest: "{{ artifacts }}/kind.yaml"
     - set_fact:
-        kind_config: "{{kind_rendered_config}}"
-  when: 'kind_config == ""'
-- name: Deploy Kind cluster {{project}}
+        deploy_kind_config: "{{ kind_rendered_config }}"
+  when: 'deploy_kind_config == ""'
+- name: Deploy Kind cluster {{ project }}
   command:
-    cmd: kind create cluster --name {{project}} --kubeconfig {{kubeconfig}} --config {{kind_config}}
+    cmd: kind create cluster --name {{ project }} --kubeconfig {{ kubeconfig }} --config {{ deploy_kind_config }}

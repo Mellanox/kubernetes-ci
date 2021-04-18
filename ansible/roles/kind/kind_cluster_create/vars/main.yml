@@ -1,2 +1,2 @@
 ---
-# vars file for kind_install
+deploy_kind_config: "{{ kind_config }}"
