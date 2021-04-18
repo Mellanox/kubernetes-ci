@@ -1,0 +1,8 @@
+---
+- name: Undeploy Kind CI project
+  hosts: kind_nodes
+  become: true
+  remote_user: root
+  tasks:
+    - debug:
+        msg: Todo

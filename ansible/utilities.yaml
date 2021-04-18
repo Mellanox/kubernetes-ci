@@ -1,0 +1,8 @@
+---
+- name: Run Kind CI utilities
+  hosts: kind_nodes
+  become: true
+  remote_user: root
+  tasks:
+    - debug:
+        msg: Todo
