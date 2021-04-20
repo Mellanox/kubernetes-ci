@@ -1,8 +1,12 @@
 ---
-- name: Run Kind CI test
+- name: Test {{ project }} project
   hosts: kind_nodes
   become: true
   remote_user: root
+  collections:
+    - community.kubernetes
   tasks:
-    - debug:
-        msg: Todo
+    - include_tasks: projects/tasks/verify-project.yaml
+    - name: Read {{ project }} vars
+      include_vars: projects/{{ project }}/vars.yaml
+    - include_tasks: projects/{{ project }}/tasks/test.yaml
