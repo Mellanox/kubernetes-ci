@@ -1,8 +1,10 @@
 ---
-- name: Undeploy Kind CI project
+- name: Undeploy ovn-kubernetes project
   hosts: kind_nodes
   become: true
   remote_user: root
   tasks:
-    - debug:
-        msg: Todo
+    - include_tasks: projects/tasks/verify-project.yaml
+    - name: Read {{ project }} vars
+      include_vars: projects/{{ project }}/vars.yaml
+    - include_tasks: projects/{{ project }}/tasks/undeploy.yaml
