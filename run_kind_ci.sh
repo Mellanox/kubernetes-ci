@@ -2,7 +2,7 @@
 
 set -e
 
-KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea")
+KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea" "ovn-kubernetes")
 KIND_CI_PHASES=("prepare-ci-environment" "deploy-kind" "utilities" "deploy-project" "test" "undeploy-project" "undeploy-kind")
 export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 
@@ -19,6 +19,7 @@ usage() {
   echo "--kind-config          Kind configuration file, if provided skip rendering related parameters"
   echo "                       if provided, ignores rendering related parameters (num-workers)"
   echo "--kubeconfig           KUBECONFIG for kind cluster"
+  echo "--pr                   Pull Request number"
   echo ""
 }
 
@@ -118,6 +119,16 @@ parse_args() {
       shift
       export KUBECONFIG=$1
       ;;
+    --pr)
+      shift
+      if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "Invalid num-workers: $1"
+        usage
+        exit 1
+      fi
+      export PULL_REQUEST=$1
+      ;;
+
     -h | --help)
       usage
       exit
@@ -154,6 +165,7 @@ print_params() {
   echo "KIND_NUM_WORKER = ${KIND_NUM_WORKER}"
   echo "KIND_CONFIG     = ${KIND_CONFIG}"
   echo "KUBECONFIG      = ${KUBECONFIG}"
+  echo "PULL_REQUEST    = ${PULL_REQUEST}"
   echo ""
 }
 

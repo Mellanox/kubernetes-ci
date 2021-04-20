@@ -1,0 +1,4 @@
+---
+project_repo: "https://github.com/ovn-org/ovn-kubernetes"
+ovn_image:  ovn-kube-f
+ovn_k8s_deployments: [ovn-setup, ovs-node, ovnkube-db, ovnkube-master, ovnkube-node]

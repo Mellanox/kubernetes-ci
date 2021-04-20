@@ -1,0 +1,8 @@
+---
+- name: Build ovn-kubernetes image
+  make:
+    chdir: "{{ project_dir.path }}/dist/images"
+    target: fedora
+- name: Load image into cluster
+  command:
+    cmd: kind load docker-image {{ ovn_image }} --name {{ project }}
