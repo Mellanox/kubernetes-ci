@@ -1,4 +1,3 @@
----
 deploy_kind_config: "{{ kind_config }}"
 render_kind_config: '{{ kind_config == "" }}'
 is_ovn_kubernetes: '{{ project == "ovn-kubernetes" }}'

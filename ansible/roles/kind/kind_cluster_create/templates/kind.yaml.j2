@@ -1,12 +1,15 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-{% if is_ovn_kubernetes %}
 networking:
+  podSubnet: {{ pod_subnet }}
+  serviceSubnet: {{ service_subnet }}
+{% if is_ovn_kubernetes %}
   disableDefaultCNI: true
   apiServerAddress: {{ ansible_default_ipv4.address }}
 featureGates:
   SCTPSupport: true
 {% endif %}
+
 nodes:
  - role: control-plane
 {% if kind_node_image %}
@@ -19,4 +22,7 @@ nodes:
 {% if kind_node_image %}
    image: {{ kind_node_image }}
 {% endif %}
+   extraMounts:
+   - hostPath: /dev
+     containerPath: /dev
 {%- endfor %}

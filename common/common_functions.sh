@@ -239,6 +239,10 @@ multus_configuration() {
         return 1
     fi
 
+    if [[ ! -d $CNI_CONF_DIR ]];then
+        return 0
+    fi
+
     multus_config=$CNI_CONF_DIR/99-multus.conf
     cat > $multus_config <<EOF
     {
@@ -262,11 +266,6 @@ EOF
 
 function load_rdma_modules {
     status=0
-    if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
-        export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
-    fi
-    echo 0 > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
-    sleep 5
 
     if [[ -n "$(lsmod | grep rdma_ucm)" ]]; then
         sudo modprobe -r rdma_ucm
@@ -690,11 +689,11 @@ function test_pods_connectivity {
         return 1
     fi
 
-    local ip_1=$(/usr/local/bin/kubectl exec -t ${POD_NAME_1} -- ifconfig net1|grep inet|awk '{print $2}')
+    local ip_1=$(/usr/local/bin/kubectl exec -t ${POD_NAME_1} -- ifconfig net1|grep inet|grep -v inet6|awk '{print $2}')
     /usr/local/bin/kubectl exec -i ${POD_NAME_1} -- ifconfig net1
     echo "${POD_NAME_1} has ip ${ip_1}"
 
-    local ip_2=$(/usr/local/bin/kubectl exec -t ${POD_NAME_2} -- ifconfig net1|grep inet|awk '{print $2}')
+    local ip_2=$(/usr/local/bin/kubectl exec -t ${POD_NAME_2} -- ifconfig net1|grep inet|grep -v inet6|awk '{print $2}')
     /usr/local/bin/kubectl exec -i ${POD_NAME_2} -- ifconfig net1
     echo "${POD_NAME_2} has ip ${ip_2}"
 
@@ -860,6 +859,14 @@ function deploy_kind_cluster {
 
     chmod +r $KUBECONFIG
 
+    local proxy_pod_name=$(kubectl get pods -A -o wide | grep ${project} | grep kube-proxy | awk '{print $2}')
+
+    for pod in $proxy_pod_name;do
+        if ! kubectl -n kube-system wait --for=condition=Ready pod/$pod --timeout=60s;then
+            return 1
+        fi
+    done
+
     if [[ "$workers_number" -ge '1' ]];then
         remount_workers_sys_fs
         let status=$status+$?
@@ -868,6 +875,9 @@ function deploy_kind_cluster {
             return $status
         fi
     fi
+
+    sudo rm -rf /usr/local/bin/kubectl
+    sudo docker cp ${project}-control-plane:/usr/bin/kubectl /usr/local/bin/
 
     return $status
 }
@@ -898,7 +908,7 @@ function test_rdma_rping {
     pod_name2=$2
     echo "Testing Rping between $pod_name1 and $pod_name2"
 
-    ip_1=$(/usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1 | grep inet | awk '{print $2}')
+    ip_1=$(/usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1 | grep inet | grep -v inet6 | awk '{print $2}')
     /usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1
     echo "$pod_name1 has ip ${ip_1}"
 
@@ -1052,4 +1062,8 @@ function upload_image_to_kind {
     echo "upload $image to kind...."
     kind load docker-image $image --name $cluster_name
     return $?
+}
+
+function read_netdev_from_vf_switcher_confs {
+    yaml_read 'pf[0]' '/etc/vf-switcher/vf-switcher.yaml'
 }

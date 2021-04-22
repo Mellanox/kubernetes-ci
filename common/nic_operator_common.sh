@@ -24,7 +24,7 @@ export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
 export NIC_OPERATOR_HARBOR_IMAGE=${NIC_OPERATOR_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/network-operator}
 
 export OFED_DRIVER_IMAGE='modified-mofed'
-export OFED_DRIVER_REPO='mellanox'
+export OFED_DRIVER_REPO='docker.io/mellanox'
 export OFED_DRIVER_VERSION='1.0.0'
 
 export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-''}
@@ -333,6 +333,7 @@ sources:
 function pull_general_component_image {
     local component_key="$1"
     local file="$2"
+    local kind_netns="$3"
 
     local image_repo=$(yaml_read "${component_key}.repository" "$file")
     local image_name=$(yaml_read "${component_key}.image" "$file")
@@ -341,11 +342,16 @@ function pull_general_component_image {
     local image="${image_repo}/${image_name}:${image_tag}"
 
     docker pull $image
+
+    if [[ -n "$kind_netns" ]];then
+        upload_image_to_kind "$image" "$kind_netns"
+    fi
 }
 
 function pull_and_build_ofed_container_image {
     local mofed_key="$1"
     local file="$2"
+    local kind_netns="$3"
 
     local image_repo=$(yaml_read "${mofed_key}.repository" "$file")
     local image_name=$(yaml_read "${mofed_key}.image" "$file")
@@ -356,6 +362,10 @@ function pull_and_build_ofed_container_image {
     docker pull $image
 
     prebuild_mofed_contianer $image
+
+    if [[ -n "$kind_netns" ]];then
+        upload_image_to_kind "$MODIFIED_MOFED_CONTAINER_NAME" "$kind_netns"
+    fi
 }
 
 function pull_nvpeer_container_image {
@@ -372,17 +382,19 @@ function pull_nvpeer_container_image {
 }
 
 function pull_network_operator_images {
-    pull_and_build_ofed_container_image "ofedDriver" "$IMAGES_SRC_FILE"
+    local kind_netns="$1"
 
-    pull_general_component_image "rdmaSharedDevicePlugin" "$IMAGES_SRC_FILE"
+    pull_and_build_ofed_container_image "ofedDriver" "$IMAGES_SRC_FILE" "$kind_netns"
+
+    pull_general_component_image "rdmaSharedDevicePlugin" "$IMAGES_SRC_FILE" "$kind_netns"
 
     pull_nvpeer_container_image "nvPeerDriver" "$IMAGES_SRC_FILE"
 
-    pull_general_component_image "secondaryNetwork.cniPlugins" "$IMAGES_SRC_FILE"
+    pull_general_component_image "secondaryNetwork.cniPlugins" "$IMAGES_SRC_FILE" "$kind_netns"
 
-    pull_general_component_image "secondaryNetwork.multus" "$IMAGES_SRC_FILE"
+    pull_general_component_image "secondaryNetwork.multus" "$IMAGES_SRC_FILE" "$kind_netns"
 
-    pull_general_component_image "secondaryNetwork.ipamPlugin" "$IMAGES_SRC_FILE"
+    pull_general_component_image "secondaryNetwork.ipamPlugin" "$IMAGES_SRC_FILE" "$kind_netns"
 }
 
 function configure_images_variable {
