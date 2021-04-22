@@ -23,9 +23,9 @@ export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-''}
 export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
 export NIC_OPERATOR_HARBOR_IMAGE=${NIC_OPERATOR_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/network-operator}
 
-export OFED_DRIVER_IMAGE=${OFED_DRIVER_IMAGE:-''}
-export OFED_DRIVER_REPO=${OFED_DRIVER_REPO:-''}
-export OFED_DRIVER_VERSION=${OFED_DRIVER_VERSION:-''}
+export OFED_DRIVER_IMAGE='modified-mofed'
+export OFED_DRIVER_REPO='mellanox'
+export OFED_DRIVER_VERSION='1.0.0'
 
 export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-''}
 export DEVICE_PLUGIN_REPO=${DEVICE_PLUGIN_REPO:-''}
@@ -61,6 +61,8 @@ export NIC_OPERATOR_CRD_NAME=${NIC_OPERATOR_CRD_NAME:-'nicclusterpolicies.mellan
 export GPU_OPERATOR_VERSION=${GPU_OPERATOR_VERSION:-'1.5.2'}
 export GPU_OPERATOR_CRD_NAME=${GPU_OPERATOR_CRD_NAME:-'clusterpolicies.nvidia.com'}
 export GPU_OPERATOR_POLICY_NAME=${GPU_OPERATOR_POLICY_NAME:-'cluster-policy'}
+
+export MODIFIED_MOFED_CONTAINER_NAME="${OFED_DRIVER_REPO}/${OFED_DRIVER_IMAGE}-${OFED_DRIVER_VERSION}:ubuntu20.04-amd64"
 
 function configure_macvlan_custom_resource {
     local file_name="$1"
@@ -341,7 +343,7 @@ function pull_general_component_image {
     docker pull $image
 }
 
-function pull_ofed_container_image {
+function pull_and_build_ofed_container_image {
     local mofed_key="$1"
     local file="$2"
 
@@ -352,6 +354,8 @@ function pull_ofed_container_image {
     local image="${image_repo}/${image_name}-${image_version}:$(get_distro)$(get_distro_version)-amd64"
 
     docker pull $image
+
+    prebuild_mofed_contianer $image
 }
 
 function pull_nvpeer_container_image {
@@ -368,7 +372,7 @@ function pull_nvpeer_container_image {
 }
 
 function pull_network_operator_images {
-    pull_ofed_container_image "ofedDriver" "$IMAGES_SRC_FILE"
+    pull_and_build_ofed_container_image "ofedDriver" "$IMAGES_SRC_FILE"
 
     pull_general_component_image "rdmaSharedDevicePlugin" "$IMAGES_SRC_FILE"
 
@@ -400,8 +404,6 @@ function configure_images_variable {
 }
 
 function set_network_operator_images_variables {
-    configure_images_variable "ofedDriver"
-
     configure_images_variable "rdmaSharedDevicePlugin"
 
     configure_images_variable "sriovDevicePlugin"
@@ -512,4 +514,11 @@ function nic_policy_create {
         return $status
     fi
     return 0
+}
+
+function prebuild_mofed_contianer {
+    local src_image="$1"
+
+    docker build -f "${SCRIPTS_DIR}/Dockerfile.ofed_rebuild" --build-arg image="$src_image"\
+        -t "$MODIFIED_MOFED_CONTAINER_NAME" "$SCRIPTS_DIR"
 }
