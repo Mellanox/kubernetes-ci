@@ -9,11 +9,13 @@ SUPPORTED_PHASES=("prepare-ci-environment" "deploy-kind" "undeploy-kind")
 export PHASES_TO_RUN=("${SUPPORTED_PHASES[@]}")
 
 usage() {
-  echo "usage: run_kind_ci.sh [[--project <name>] [--skip-phases <phases>] [--num-workers <num>]"
-  echo "                       [--kind-config <conf-fil>] [--kubeconfig <path>]  [-h]]"
+  echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
+  echo "                       [--num-workers <num>] [--kind-config <conf-fil>] [--kubeconfig <path>]"
+  echo "                       [-h]]"
   echo ""
   echo "--project              Project to run CI: ${KIND_CI_PROJECTS[*]}"
   echo "                       Required field"
+  echo "--phases               Comma separated phases to run, if presented ignores --skip-phases. phases: ${KIND_CI_PHASES[*]}"
   echo "--skip-phases          Comma separated phases, phases: ${KIND_CI_PHASES[*]}"
   echo "--num-workers          Number of worker nodes. DEFAULT: 2 worker"
   echo "--kind-config          Kind configuration file, if provided skip rendering related parameters"
@@ -31,6 +33,25 @@ containsElement() {
   done
 
   return 1
+}
+
+parse_phases() {
+  PHASES=$1
+  IFS="," read -a PHASES <<<"$1"
+  for phase in "${PHASES[@]}"; do
+    if ! containsElement "$phase" "${KIND_CI_PHASES[*]}"; then
+      echo "Unknown phase $phase"
+      usage
+      exit 1
+    fi
+  done
+
+  PHASES_TO_RUN=()
+  for phase in "${SUPPORTED_PHASES[@]}"; do
+    if containsElement "$phase" "${PHASES[*]}"; then
+      PHASES_TO_RUN+=("$phase")
+    fi
+  done
 }
 
 parse_skip_phases() {
@@ -66,9 +87,15 @@ parse_args() {
       fi
       export PROJECT=$project
       ;;
+    --phases)
+      shift
+      parse_phases $1
+      ;;
     --skip-phases)
       shift
-      parse_skip_phases $1
+      if [[ ${PHASES} == "" ]]; then
+        parse_skip_phases $1
+      fi
       ;;
     --num-workers)
       shift
