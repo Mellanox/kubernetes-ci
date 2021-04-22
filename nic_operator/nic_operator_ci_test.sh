@@ -113,7 +113,7 @@ function test_rdma_only {
 
     sleep 10
 
-    test_rdma_plugin "" "$MACVLAN_NETWORK_DEFAULT_NAME"
+    test_rdma_plugin "" "$MACVLAN_NETWORK_DEFAULT_NAME" "rdma/rdma_shared_devices_a"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: RDMA device plugin testing Failed!"
@@ -182,6 +182,29 @@ function configure_device_plugin {
 " "$file_name"
 }
 
+function configure_host_device {
+    local file_name="$1"
+    local resource_prefix=${2:-'nvidia.com'}
+    local resource_name=${3:-'hostdev'}
+
+    configure_images_specs "sriovDevicePlugin" "$file_name"
+
+    yaml_write spec.sriovDevicePlugin.config "\
+{
+  \"resourceList\": [
+    {
+      \"resourcePrefix\": \"$resource_prefix\",
+      \"resourceName\": \"$resource_name\",
+      \"selectors\": {
+        \"isRdma\": true,
+        \"drivers\": [\"mlx5_core\"]
+      }
+    }
+  ]
+}
+" "$file_name"
+}
+
 function configure_nv_peer_mem {
     local file_name="$1"
 
@@ -245,7 +268,7 @@ function test_ofed_and_rdma {
         return $status
     fi
 
-    test_rdma_plugin "" "$MACVLAN_NETWORK_DEFAULT_NAME"
+    test_rdma_plugin "" "$MACVLAN_NETWORK_DEFAULT_NAME" "rdma/rdma_shared_devices_a"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: RDMA device plugin testing Failed!"
@@ -466,6 +489,104 @@ function test_predefined_name {
     return 0
 }
 
+function test_host_device {
+    local resource_name_prefix="nvidia.com"
+    local resource_name="hostdev"
+
+    status=0
+
+    echo "Testing Host device..."
+    echo ""
+
+    sudo apt-get install -y rdma-core
+
+    load_core_drivers
+    sleep 2
+
+    load_rdma_modules
+    sleep 2
+
+    local network_file="${ARTIFACTS}/example-hostdevice-network.yaml"
+
+    configure_hostdevice_network_custom_resource "$resource_name" "$network_file"
+    kubectl create -f "$network_file"
+
+    local sample_file="$ARTIFACTS"/host-device-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_host_device "$sample_file" "$resource_name_prefix" "$resource_name"
+
+    nic_policy_create "$sample_file"
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    test_rdma_plugin "" "$HOSTDEVICE_NETWORK_DEFAULT_NAME" "${resource_name_prefix}/${resource_name}"
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: host device plugin testing Failed!"
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+    return 0
+}
+
+function test_ofed_and_host_device {
+    local resource_name_prefix="nvidia.com"
+    local resource_name="hostdev"
+
+    status=0
+
+    echo "Testing OFED and Host device..."
+    echo ""
+
+    local sample_file="$ARTIFACTS"/ofed-and-host-device-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+    configure_host_device "$sample_file" "$resource_name_prefix" "$resource_name"
+
+    nic_policy_create "$sample_file"
+    let status=$status+$?
+    if [[ "$status" != 0 ]]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    test_ofed_drivers
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Ofed modules failed!"
+        return $status
+    fi
+
+    test_rdma_plugin "" "$HOSTDEVICE_NETWORK_DEFAULT_NAME" "${resource_name_prefix}/${resource_name}"
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: host device plugin testing Failed!"
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+    return 0
+}
 
 function exit_code {
     rc="$1"
@@ -521,6 +642,20 @@ function main {
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: Testing deploying OFED, RDMA, and nv-peer-mem failed!!"
+        exit_code $status
+    fi
+
+    test_host_device
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Test deploying the host device failed!!"
+        exit_code $status
+    fi
+
+    test_ofed_and_host_device
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Test deploying OFED and host device failed!!"
         exit_code $status
     fi
 
