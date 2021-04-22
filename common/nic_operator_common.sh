@@ -414,3 +414,102 @@ function set_network_operator_images_variables {
 
     configure_images_variable "secondaryNetwork.ipamPlugin"
 }
+
+function configure_common {
+    local file_name="$1"
+    local nic_policy_name=${2:-"$NIC_CLUSTER_POLICY_DEFAULT_NAME"}
+
+    if [[ -f "$file_name" ]];then
+        rm -f "$file_name"
+    fi
+
+    touch "$file_name"
+
+    yaml_write 'apiVersion' 'mellanox.com/v1alpha1' "$file_name"
+    yaml_write 'kind' 'NicClusterPolicy' "$file_name"
+    yaml_write 'metadata.name' "$nic_policy_name" "$file_name"
+    yaml_write 'metadata.namespace' "$(get_nic_operator_namespace)" "$file_name"
+
+    configure_images_specs "secondaryNetwork.multus" "$file_name"
+    configure_images_specs "secondaryNetwork.cniPlugins" "$file_name"
+    configure_images_specs "secondaryNetwork.ipamPlugin" "$file_name"
+}
+
+function configure_ofed {
+    local file_name="$1"
+
+    sudo apt-get purge -y rdma-core
+
+    modprobe -r rpcrdma
+
+    configure_images_specs "ofedDriver" "$file_name"
+}
+
+function configure_device_plugin {
+    local file_name="$1"
+    local rdma_resource_name=${2:-'rdma_shared_devices_a'}
+
+    local rdma_shared_device_plugin_key='devicePlugin'
+
+    if [[ -z "$(yaml_read spec.$rdma_shared_device_plugin_key $nic_operator_dir/example/crs/mellanox.com_v1alpha1_nicclusterpolicy_cr.yaml)" ]];then
+        local rdma_shared_device_plugin_key='rdmaSharedDevicePlugin'
+    fi
+
+    configure_images_specs "$rdma_shared_device_plugin_key" "$file_name"
+
+    yaml_write spec."$rdma_shared_device_plugin_key".config "\
+{
+  \"configList\": [{
+    \"resourceName\": \"$rdma_resource_name\",
+    \"rdmaHcaMax\": 1000,
+    \"devices\": [\"$SRIOV_INTERFACE\"]
+  }]
+}
+" "$file_name"
+}
+
+function configure_host_device {
+    local file_name="$1"
+    local resource_prefix=${2:-'nvidia.com'}
+    local resource_name=${3:-'hostdev'}
+
+    configure_images_specs "sriovDevicePlugin" "$file_name"
+
+    yaml_write spec.sriovDevicePlugin.config "\
+{
+  \"resourceList\": [
+    {
+      \"resourcePrefix\": \"$resource_prefix\",
+      \"resourceName\": \"$resource_name\",
+      \"selectors\": {
+        \"isRdma\": true,
+        \"drivers\": [\"mlx5_core\"]
+      }
+    }
+  ]
+}
+" "$file_name"
+}
+
+function configure_nv_peer_mem {
+    local file_name="$1"
+
+    configure_images_specs "nvPeerDriver" "$file_name"
+    yaml_write spec.nvPeerDriver.gpuDriverSourcePath "/run/nvidia/driver"\
+     "$file_name"
+}
+
+function nic_policy_create {
+    status=0
+    cr_file="$1"
+
+    kubectl create -f $cr_file
+
+    wait_nic_policy_states "$(yq r $cr_file metadata.name)"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $cr_file."
+        return $status
+    fi
+    return 0
+}
