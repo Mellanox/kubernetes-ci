@@ -788,7 +788,9 @@ function change_image_name {
 }
 
 function get_auto_net_device {
-    ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n1 | awk '{print $1}') | awk '{print $9}'
+    local number_of_devices=${1:-"1"}
+
+    ls -l /sys/class/net/ | grep -E $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n "$number_of_devices" | awk '{print $1}' | sed ':a;N;$!ba;s/\n/|/g') | awk '{print $9}' | sed ':a;N;$!ba;s/\n/ /g'
 }
 
 function deploy_k8s_bare {
@@ -820,10 +822,11 @@ function deploy_k8s_bare {
 function deploy_kind_cluster_with_multus {
     local project="$1"
     local workers_number="$2"
+    local number_of_interfaces="${3:-"1"}"
 
     local status=0
 
-    deploy_kind_cluster "$project" "$workers_number"
+    deploy_kind_cluster "$project" "$workers_number" "$number_of_interfaces"
     let status=$status+$?
     if [[ "$status" != "0" ]]; then
         echo "Failed to deploy kind!!"
@@ -843,6 +846,7 @@ function deploy_kind_cluster_with_multus {
 function deploy_kind_cluster {
     local project="$1"
     local workers_number="$2"
+    local number_of_interfaces="${3:-"1"}"
 
     local status=0
 
@@ -865,7 +869,7 @@ function deploy_kind_cluster {
         fi
     fi
 
-    deploy_vf_switcher_service "${project}-worker" "$ARTIFACTS/vf-switcher.yaml"
+    deploy_vf_switcher_service "${project}-worker" "$ARTIFACTS/vf-switcher.yaml" "$number_of_interfaces"
 
     sudo systemctl restart vf-switcher
     let status=$status+$?
@@ -901,10 +905,11 @@ function remount_workers_sys_fs {
 function deploy_vf_switcher_service {
     local netns="$1"
     local conf_file_temp_name="$2"
+    local number_of_interfaces="${3:-"1"}"
 
     local status=0
 
-    prepare_vf_switcher_confs "$(get_auto_net_device)" "$netns" "$conf_file_temp_name"
+    prepare_vf_switcher_confs "$netns" "$conf_file_temp_name" $(get_auto_net_device $number_of_interfaces)
     let status=$status+$?
     if [[ "$status" != "0" ]];then
         echo "Error: failed to configure the vf-switcher service!"
@@ -923,14 +928,19 @@ function deploy_vf_switcher_service {
 }
 
 function prepare_vf_switcher_confs {
-    local pf_interface="$1"
-    local worker_name="$2"
-    local conf_file=${3:-"$ARTIFACTS/vf-switcher.yaml"}
+    local worker_name="$1"
+    local conf_file="$2"
+    shift 2
+    local pf_interfaces="$@"
 
     local status=0
 
-    if [[ -z "${pf_interface}${worker_name}" ]];then
-        echo "Error: vf-switcher confs are missing confs: interface: $pf_interface, worker:$worker_name !"
+    if [[ -z "$conf_file" ]];then
+        conf_file="$ARTIFACTS/vf-switcher.yaml"
+    fi
+
+    if [[ -z "${pf_interfaces}${worker_name}" ]];then
+        echo "Error: vf-switcher confs are missing confs: interface: $pf_interfaces, worker:$worker_name !"
         return 1
     fi
 
@@ -940,8 +950,13 @@ function prepare_vf_switcher_confs {
 
     touch $conf_file
 
-    yaml_write 'pf' "$pf_interface" "$conf_file"
-    let status=$status+$?
+    ((pf_index=0))
+    for pf_interface in $pf_interfaces; do
+        yaml_write "pf[${pf_index}]" "$pf_interface" "$conf_file"
+        let status=$status+$?
+        ((pf_index++))
+    done
+
     yaml_write 'netns' "$worker_name" "$conf_file"
     let status=$status+$?
 

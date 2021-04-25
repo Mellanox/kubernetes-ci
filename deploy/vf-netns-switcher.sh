@@ -1,9 +1,10 @@
 #!/bin/bash
 
 netns=""
-pf=""
 conf_file=""
-pci=""
+
+declare -a pfs
+declare -a pcis
 
 TIMEOUT="10"
 POLL_INTERVAL="1"
@@ -18,7 +19,7 @@ while test $# -gt 0; do
       ;;
 
    --pf | -d)
-      pf=$2
+      pfs+=("$2")
       shift
       shift
       ;;
@@ -35,7 +36,7 @@ vf-netns-switcher.sh --netns <> --pf <> [--conf-file <>]:
 
 	--netns | -n		Netns to switch the interface PFs and VFs to.
 
-	--pf | -d		The PF to switch it and its VFs to the specified netns.
+	--pf | -d		The PF to switch it and its VFs to the specified netns. This option can be repeated.
 
 	--conf-file | -c	A file to read confs from, this will override cli flags.
 
@@ -50,13 +51,22 @@ vf-netns-switcher.sh --netns <> --pf <> [--conf-file <>]:
   esac
 done
 
+get_pcis_from_pfs(){
+    local worker_netns="${1:-$netns}"
+    shift
+    local interfaces="$@"
+    for interface in $interfaces; do
+        pcis+=("$(get_pci_from_net_name "$interface" "$worker_netns")")
+    done
+}
+
 get_pci_from_net_name(){
     local interface_name=$1
     local worker_netns="${2:-$netns}"
 
     if [[ -z "$(ip l show $interface_name)" ]];then
         if [[ -n "$(docker exec -t ${worker_netns} ip l show $interface_name)" ]];then
-            ip netns exec ${worker_netns} basename $(readlink /sys/class/net/${interface_name}/device)
+            ip netns exec ${worker_netns} bash -c "basename \$(readlink /sys/class/net/${interface_name}/device)"
             return 0
         fi
         echo ""
@@ -84,6 +94,16 @@ netns_create(){
         fi
     fi
     return 0
+}
+
+switch_pfs(){
+    local worker_netns="${1:-$netns}"
+    shift
+    local interfaces="$@"
+
+    for pf in $interfaces;do
+        switch_pf "$pf" "$worker_netns"
+    done
 }
 
 switch_pf(){
@@ -133,12 +153,21 @@ switch_vf(){
     fi
 }
 
+switch_netns_vfs(){
+    local worker_netns="${1:-$netns}"
+
+    ((number_of_pfs=${#pfs[@]}-1))
+    for index in $(seq 0 $number_of_pfs);do
+        switch_interface_vfs "${pfs[$index]}" "$worker_netns" "${pcis[$index]}"
+    done
+}
+
 switch_interface_vfs(){
     local pf_name="$1"
     local worker_netns="${2:-$netns}"
+    local pci="$3"
 
-
-    vfs_list=$(ls /sys/bus/pci/devices/$pci/ | grep virtfn)
+    vfs_list=$(ls /sys/bus/pci/devices/$pci | grep virtfn)
 
     if [[ -z "${vfs_list}" ]];then
         echo "Warning: No VFs found for interface $pf_name!!"
@@ -163,8 +192,14 @@ switch_interface_vfs(){
 read_confs(){
     local conf_file="$1"
 
-    for key in $(yq r "$conf_file" | cut -d ":" -f 1);do
-        eval $key="$(yq r $conf_file $key)"
+    netns=$(yq r $conf_file netns)
+
+    pfs=()
+
+    local number_of_pfs=$(yq r -l $conf_file pf)
+    ((number_of_pfs--))
+    for index in $(seq 0 $number_of_pfs);do
+        pfs+=("$(yq r $conf_file pf[${index}])")
     done
 }
 
@@ -173,7 +208,7 @@ variables_check(){
 
     check_empty_var "netns"
     let status=$status+$?
-    check_empty_var "pf"
+    check_empty_var "pfs"
     let status=$status+$?
 
     return $status
@@ -194,7 +229,10 @@ main(){
     local status=0
 
     while true;do
-        switch_interface_vfs "$pf" "$netns"
+        switch_pfs "$netns" "${pfs[@]}"
+        sleep 5
+
+        switch_netns_vfs "$netns"
         sleep $TIMEOUT
     done
     return $status
@@ -210,9 +248,9 @@ if [[ "$status" != "0" ]];then
     exit $status
 fi
 
-pci=$(get_pci_from_net_name "$pf" "$worker_netns")
+get_pcis_from_pfs "$worker_netns" "${pfs[@]}"
 
-if [[ -z "${pci}" ]];then
+if [[ "${#pcis[@]}" == "0" ]];then
     echo "Error: could not get pci address of interface $pf!!"
     exit 1
 fi
@@ -221,13 +259,6 @@ netns_create
 let status=$status+$?
 if [[ "$status" != "0" ]];then
     echo "ERROR: failed to create netns..."
-    exit $status
-fi
-
-switch_pf "$pf" "$netns"
-let status=$status+$?
-if [[ "$status" != "0" ]];then
-    echo "ERROR: failed to switch pf $pf to the $netns namespace..."
     exit $status
 fi
 
