@@ -118,6 +118,18 @@ get_distro_version(){
     grep ^VERSION_ID= /etc/os-release | cut -d'=' -f2 -s | tr -d '"'
 }
 
+get_kind_distro_version(){
+    # (abdallahyas): This is used to determine the kind cluster OS version
+    # Since this is called before the cluster is up, it is hard to read it
+    # so static value is returned.
+
+    # Also Ubuntu version 20.10 is not currently supported for mofed container
+    # so a workaround of retaging the 20.04 version to 20.10 and using it is
+    # adopted to run the mofed container inside the kind nodes.
+
+    echo "20.10"
+}
+
 configure_firewall(){
     local os_distro=$(get_distro)
     if [[ "$os_distro" == "ubuntu" ]];then
@@ -371,6 +383,15 @@ function yaml_write {
 
     echo "Changing the value of \"$key\" in $file to \"$new_value\""
     yq w -i "$file" "$key" -- "$new_value"
+}
+
+function yaml_double_write {
+    local key=$1
+    local new_value=$2
+    local file=$3
+
+    echo "Changing the value of \"$key\" in $file to \"$new_value\""
+    yq w -i --style=double "$file" "$key" -- "$new_value"
 }
 
 function yaml_read {

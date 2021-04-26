@@ -19,7 +19,7 @@ export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
 export KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-'harbor.mellanox.com/cloud-orchestration/kind-node:latest'}
 
-project="nic-operator-helm"
+export project="nic-operator-helm"
 
 function download_and_build {
     status=0
@@ -63,6 +63,7 @@ function configure_helm_values {
     yaml_write "node-feature-discovery.worker.tolerations[0].value" "present" "$file_name"
     yaml_write "node-feature-discovery.worker.tolerations[0].effect" "NoSchedule" "$file_name"
 
+    yaml_write "sriovNetworkOperator.enabled" "true" $file_name
     yaml_write "operator.tag" "latest" $file_name
     yq d -i $file_name "operator.nodeSelector"
     yaml_write "deployCR" "true" $file_name
@@ -89,6 +90,8 @@ function configure_helm_values {
     yaml_write "$rdma_shared_device_plugin_key".resources[0].name "rdma_shared_devices_a" $file_name
     yaml_write "$rdma_shared_device_plugin_key".resources[0].ifNames[0] "$SRIOV_INTERFACE" $file_name
 
+    yaml_write "sriovDevicePlugin.deploy" "false" $file_name
+
     yaml_write "secondaryNetwork.deploy" "true" $file_name
 
     yaml_write "secondaryNetwork.cniPlugins.deploy" "true" $file_name
@@ -107,12 +110,18 @@ function configure_helm_values {
     yaml_write "secondaryNetwork.ipamPlugin.version" "$SECONDARY_NETWORK_IPAM_PLUGIN_VERSION" $file_name
 }
 
+function label_node {
+    kubectl label nodes ${project}-worker node-role.kubernetes.io/worker=""
+}
+
 function deploy_operator {
     let status=0
 
     local values_file=${1:-"${ARTIFACTS}/helm-values.yaml"}
 
     pushd $WORKSPACE/mellanox-network-operator
+
+    label_node
 
     # Install charts from 3rd-party repositories. Errors for empty reposetories won't affect installation.
     cd deployment/network-operator
@@ -151,7 +160,7 @@ function deploy_operator {
 
     sleep 5
 
-    wait_nic_policy_states "" "state-ofed"
+    wait_nic_policy_states "" "" "ready"
     let status=$status+$?
     if [ "$status" != 0 ]; then
         echo "Timed out waiting for operator to become running"
@@ -174,14 +183,14 @@ function main {
         export SRIOV_INTERFACE
     fi
 
-    pushd $WORKSPACE
-
     deploy_kind_cluster "$project" "1" "2"
     if [ $? -ne 0 ]; then
         echo "Failed to deploy k8s"
         popd
         return 1
     fi
+
+    pushd $WORKSPACE/
 
     deploy_calico
     if [ $? -ne 0 ]; then
@@ -208,8 +217,6 @@ function main {
     fi
 
     sleep 30
-
-    unlabel_master
 
     echo "All code in $WORKSPACE"
     echo "All logs $LOGDIR"
