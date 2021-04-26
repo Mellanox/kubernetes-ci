@@ -272,13 +272,22 @@ packages_install(){
 }
 
 pip_packages_install(){
-    packages="ansible==3.2.0"
+    packages="ansible==3.2.0 openshift"
 
     echo ""
     echo "Installing pip packages $packages ...."
 
     pip3 install -U pip setuptools
     pip3 install $packages
+}
+
+install_ansible_modules(){
+    modules="community.kubernetes"
+
+    echo ""
+    echo "Installing ansible modules $modules ...."
+
+    ansible-galaxy collection install $modules
 }
 
 main(){
@@ -311,6 +320,9 @@ main(){
     let status=$status+$?
 
     pip_packages_install
+    let status=$status+$?
+
+    install_ansible_modules
     let status=$status+$?
 
     return $status

@@ -2,11 +2,9 @@
 
 set -e
 
-KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea")
+KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea" "ovn-kubernetes")
 KIND_CI_PHASES=("prepare-ci-environment" "deploy-kind" "utilities" "deploy-project" "test" "undeploy-project" "undeploy-kind")
-# SUPPORTED_PHASES is temporally used until all phases are supported
-SUPPORTED_PHASES=("prepare-ci-environment" "deploy-kind" "undeploy-kind")
-export PHASES_TO_RUN=("${SUPPORTED_PHASES[@]}")
+export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 
 usage() {
   echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
@@ -21,6 +19,7 @@ usage() {
   echo "--kind-config          Kind configuration file, if provided skip rendering related parameters"
   echo "                       if provided, ignores rendering related parameters (num-workers)"
   echo "--kubeconfig           KUBECONFIG for kind cluster"
+  echo "--pr                   Pull Request number"
   echo ""
 }
 
@@ -47,7 +46,7 @@ parse_phases() {
   done
 
   PHASES_TO_RUN=()
-  for phase in "${SUPPORTED_PHASES[@]}"; do
+  for phase in "${KIND_CI_PHASES[@]}"; do
     if containsElement "$phase" "${PHASES[*]}"; then
       PHASES_TO_RUN+=("$phase")
     fi
@@ -66,7 +65,7 @@ parse_skip_phases() {
   done
 
   PHASES_TO_RUN=()
-  for phase in "${SUPPORTED_PHASES[@]}"; do
+  for phase in "${KIND_CI_PHASES[@]}"; do
     if ! containsElement "$phase" "${SKIP_PHASES[*]}"; then
       PHASES_TO_RUN+=("$phase")
     fi
@@ -120,6 +119,16 @@ parse_args() {
       shift
       export KUBECONFIG=$1
       ;;
+    --pr)
+      shift
+      if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "Invalid num-workers: $1"
+        usage
+        exit 1
+      fi
+      export PULL_REQUEST=$1
+      ;;
+
     -h | --help)
       usage
       exit
@@ -156,6 +165,7 @@ print_params() {
   echo "KIND_NUM_WORKER = ${KIND_NUM_WORKER}"
   echo "KIND_CONFIG     = ${KIND_CONFIG}"
   echo "KUBECONFIG      = ${KUBECONFIG}"
+  echo "PULL_REQUEST    = ${PULL_REQUEST}"
   echo ""
 }
 
@@ -165,7 +175,7 @@ print_params
 for phase in "${PHASES_TO_RUN[@]}"; do
   echo "=============================="
   echo "Running phase $phase"
-  ansible-playbook --inventory ansible/inventory/hosts "ansible/$phase.yaml" -vv
+  ansible-playbook --inventory ansible/inventory/hosts "ansible/$phase.yaml" -e @ansible/ci_vars/kind_ci.yaml -vv
 done
 
 echo "Finished running Kind CI"

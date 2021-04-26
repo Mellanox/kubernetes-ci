@@ -7,18 +7,40 @@
         suffix: build
       register: kind_conf_temp_dir
     - set_fact:
-        kind_rendered_config: "{{kind_conf_temp_dir.path}}/kind.yaml"
+        kind_rendered_config: "{{ kind_conf_temp_dir.path }}/kind.yaml"
     - name: Render kind configuration
       template:
         src: kind.yaml.j2
-        dest: "{{kind_rendered_config}}"
-    - name: Copy rendered kind configuration to artifacts
-      copy:
-        src: "{{kind_rendered_config}}"
-        dest: "{{artifacts}}/kind.yaml"
+        dest: "{{ kind_rendered_config }}"
     - set_fact:
-        kind_config: "{{kind_rendered_config}}"
-  when: 'kind_config == ""'
-- name: Deploy Kind cluster {{project}}
+        deploy_kind_config: "{{ kind_rendered_config }}"
+  when: "render_kind_config"
+- name: Copy kind configuration to artifacts
+  copy:
+    src: "{{ deploy_kind_config }}"
+    dest: "{{ artifacts }}/kind.yaml"
+- name: Deploy Kind cluster {{ project }}
   command:
-    cmd: kind create cluster --name {{project}} --kubeconfig {{kubeconfig}} --config {{kind_config}}
+    cmd: kind create cluster --name {{ project }} --kubeconfig {{ kubeconfig }} --config {{ deploy_kind_config }}
+- name: Ensure cluster is running
+  k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: kube-system
+    name: "{{ item }}"
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"
+  loop:
+    - kube-apiserver-{{ project }}-control-plane
+    - kube-controller-manager-{{ project }}-control-plane
+    - etcd-{{ project }}-control-plane
+    - kube-scheduler-{{ project }}-control-plane
+- name: Remove temp rendering dir
+  file:
+    path: "{{ kind_conf_temp_dir.path }}"
+    state: absent
+  when: "render_kind_config"
