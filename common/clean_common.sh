@@ -31,6 +31,12 @@ function stop_k8s {
     rm -rf $HOME/.kube/config
 }
 
+function stop_kind_cluster {
+    local project="$1"
+
+    ./run_kind_ci.sh --project "$project" --phases undeploy-kind
+}
+
 function asure_all_stoped {
     kill $(ps -ef |grep local-up-cluster.sh|grep $WORKSPACE|awk '{print $2}')
     kill $(pgrep sriovdp)
@@ -157,6 +163,17 @@ function collect_services_logs {
         echo "Collecting Services Logs..."
         get_service_log "kubelet"
         get_service_log "docker"
+    else
+        echo ""
+        echo "No \"${LOGDIR}/start-time.log\", Assuming job did not start."
+        echo ""
+    fi
+}
+
+function collect_vf_switcher_logs {
+    if [[ -f "${LOGDIR}/start-time.log" ]];then
+        echo "Collecting the vf-switcher Logs..."
+        get_service_log "vf-switcher"
     else
         echo ""
         echo "No \"${LOGDIR}/start-time.log\", Assuming job did not start."
