@@ -1,10 +1,12 @@
 #!/bin/bash
 
+source ./common/clean_common.sh
+
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
-export KUBECONFIG='/root/.kube/config'
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 function exit_code {
     rc="$1"

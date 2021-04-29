@@ -25,7 +25,7 @@ export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$P
 
 export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
 export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
-export KUBECONFIG='/root/.kube/config'
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 #TODO add autodiscovering
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}

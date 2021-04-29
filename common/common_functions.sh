@@ -854,6 +854,8 @@ function deploy_kind_cluster {
         return 1
     fi
 
+    chmod +r $KUBECONFIG
+
     if [[ "$workers_number" -ge '1' ]];then
         remount_workers_sys_fs
         let status=$status+$?
