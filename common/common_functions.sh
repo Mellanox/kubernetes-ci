@@ -886,7 +886,7 @@ function remount_workers_sys_fs {
     fi
 
     for worker_container in $worker_containers; do
-        sudo docker exec -it "$worker_container" mount -o remount,rw /sys
+        sudo docker exec -t "$worker_container" mount -o remount,rw /sys
         let status=$status+$?
     done
 
