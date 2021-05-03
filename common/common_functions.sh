@@ -854,6 +854,8 @@ function deploy_kind_cluster {
         return 1
     fi
 
+    chmod +r $KUBECONFIG
+
     if [[ "$workers_number" -ge '1' ]];then
         remount_workers_sys_fs
         let status=$status+$?
@@ -886,7 +888,7 @@ function remount_workers_sys_fs {
     fi
 
     for worker_container in $worker_containers; do
-        sudo docker exec -it "$worker_container" mount -o remount,rw /sys
+        sudo docker exec -t "$worker_container" mount -o remount,rw /sys
         let status=$status+$?
     done
 

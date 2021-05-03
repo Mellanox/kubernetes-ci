@@ -1,11 +1,11 @@
 #!/bin/bash -x
 
+source ./common/clean_common.sh
+
 export LOGDIR=$WORKSPACE/logs
 export ARTIFACTS=$WORKSPACE/artifacts
 
-export KUBECONFIG='/root/.kube/config'
-
-source ./common/clean_common.sh
+export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 function clean_antrea_runtime {
     rm -rf /var/run/antrea/
