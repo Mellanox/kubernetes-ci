@@ -53,15 +53,6 @@ function main {
 
     set_network_operator_images_variables
 
-    test_ofed_only
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Error: Testing deploying the OFED only failed!!"
-        exit_code $status
-    fi
-    
-    sleep 10
-
     test_rdma_only
     let status=status+$?
     if [ "$status" != 0 ]; then
@@ -84,52 +75,10 @@ function main {
         exit_code $status
     fi
 
-    test_host_device
-    let status=$status+$?
-    if [[ "$status" != "0" ]]; then
-        echo "Error: Test deploying the host device failed!!"
-        exit_code $status
-    fi
-
-    test_ofed_and_host_device
-    let status=$status+$?
-    if [[ "$status" != "0" ]]; then
-        echo "Error: Test deploying nv-peer-mem and host device failed!!"
-        exit_code $status
-    fi
-
     test_nv_peer_mem_with_host_device
     let status=$status+$?
     if [[ "$status" != "0" ]]; then
         echo "Error: Test deploying OFED and host device failed!!"
-        exit_code $status
-    fi
-
-    test_probes
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Error: Probes test failed!"
-        exit_code $status
-    fi
-
-    test_secondary_network
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Error: Testing secondary network failed!!"
-        exit_code $status
-    fi
-
-    test_predefined_name
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Error: Predefined name test failed!"
-        exit_code $status
-    fi
-
-    test_deleting_network_operator
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Error: Test Deleting Network Operator failed!"
         exit_code $status
     fi
 

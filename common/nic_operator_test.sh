@@ -481,6 +481,11 @@ function test_nv_peer_mem_with_host_device {
         return $status
     fi
 
+    local network_file="${ARTIFACTS}/example-hostdevice-network.yaml"
+
+    configure_hostdevice_network_custom_resource "$resource_name" "$network_file"
+    kubectl create -f "$network_file"
+
     local sample_file="$ARTIFACTS"/ofed-host-device-nv-peer-nic-cluster-policy.yaml
 
     configure_common "$sample_file"
