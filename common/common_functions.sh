@@ -952,12 +952,12 @@ function prepare_vf_switcher_confs {
 
     ((pf_index=0))
     for pf_interface in $pf_interfaces; do
-        yaml_write "pf[${pf_index}]" "$pf_interface" "$conf_file"
+        yaml_write "[0].pfs[${pf_index}]" "$pf_interface" "$conf_file"
         let status=$status+$?
         ((pf_index++))
     done
 
-    yaml_write 'netns' "$worker_name" "$conf_file"
+    yaml_write '[0].netns' "$worker_name" "$conf_file"
     let status=$status+$?
 
     return $status

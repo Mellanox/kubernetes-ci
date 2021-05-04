@@ -1,10 +1,11 @@
 #!/bin/bash
 
-netns=""
 conf_file=""
 
-declare -a pfs
-declare -a pcis
+declare -a netnses
+
+declare -A pfs
+declare -A pcis
 
 TIMEOUT="10"
 POLL_INTERVAL="1"
@@ -13,13 +14,18 @@ while test $# -gt 0; do
   case "$1" in
 
    --netns | -n)
-      netns=$2
+      netnses+=("$2")
       shift
       shift
       ;;
 
    --pf | -d)
-      pfs+=("$2")
+      if [[ -z "${netnses[-1]}" ]];then
+          echo "ERROR: No netns is specified, please provide one using the --netns before using --pf."
+          exit 1
+      fi
+
+      pfs["${netnses[-1]}"]+="$2 "
       shift
       shift
       ;;
@@ -34,11 +40,21 @@ while test $# -gt 0; do
       echo "
 vf-netns-switcher.sh --netns <> --pf <> [--conf-file <>]:
 
-	--netns | -n		Netns to switch the interface PFs and VFs to.
+	--netns | -n		Netns to switch the interface PFs and VFs to. This needs to be provided before the pfs
+				to associate the pfs to the netns. This flag can be repeated.
 
-	--pf | -d		The PF to switch it and its VFs to the specified netns. This option can be repeated.
+	--pf | -d		The PF to switch it and its VFs to the specified netns. This must be provided after a
+				netns to associate the pf to the last provided netns. This option can be repeated.
 
-	--conf-file | -c	A file to read confs from, this will override cli flags.
+	--conf-file | -c	A file to read confs from, this will override cli flags. Conf file should be of the form:
+				- netns: <netns1>
+				  pfs:
+				  - <pf1>
+				  - <pf2>
+				- netns: <netns2>
+				  pfs:
+				  - <pf3>
+				  - <pf4>
 
 "
       exit 0
@@ -52,11 +68,11 @@ vf-netns-switcher.sh --netns <> --pf <> [--conf-file <>]:
 done
 
 get_pcis_from_pfs(){
-    local worker_netns="${1:-$netns}"
+    local worker_netns="${1}"
     shift
     local interfaces="$@"
     for interface in $interfaces; do
-        pcis+=("$(get_pci_from_net_name "$interface" "$worker_netns")")
+        pcis["$interface"]="$(get_pci_from_net_name "$interface" "$worker_netns")"
     done
 }
 
@@ -156,9 +172,8 @@ switch_vf(){
 switch_netns_vfs(){
     local worker_netns="${1:-$netns}"
 
-    ((number_of_pfs=${#pfs[@]}-1))
-    for index in $(seq 0 $number_of_pfs);do
-        switch_interface_vfs "${pfs[$index]}" "$worker_netns" "${pcis[$index]}"
+    for pf in ${pfs["$worker_netns"]};do
+        switch_interface_vfs "$pf" "$worker_netns" "${pcis[$pf]}"
     done
 }
 
@@ -192,14 +207,14 @@ switch_interface_vfs(){
 read_confs(){
     local conf_file="$1"
 
-    netns=$(yq r $conf_file netns)
+    let number_of_netns=$(yq r $conf_file -l)-1
 
-    pfs=()
-
-    local number_of_pfs=$(yq r -l $conf_file pf)
-    ((number_of_pfs--))
-    for index in $(seq 0 $number_of_pfs);do
-        pfs+=("$(yq r $conf_file pf[${index}])")
+    for index in $(seq 0 $number_of_netns);do
+        netnses+=("$(yq r $conf_file [$index].netns)")
+        let number_of_pfs=$(yq r $conf_file [$index].pfs -l)-1
+        for pf_index in $(seq 0 $number_of_pfs);do
+            pfs[${netnses[-1]}]+="$(yq r $conf_file [$index].pfs[$pf_index]) "
+        done
     done
 }
 
@@ -217,7 +232,7 @@ variables_check(){
 check_empty_var(){
     local var_name="$1"
 
-    if [[ -z "${!var_name}" ]];then
+    if [[ -z "${!var_name[@]}" ]];then
         echo "$var_name is empty..."
         return 1
     fi
@@ -229,37 +244,49 @@ main(){
     local status=0
 
     while true;do
-        switch_pfs "$netns" "${pfs[@]}"
-        sleep 5
-
-        switch_netns_vfs "$netns"
+        for netns in ${netnses[@]};do
+            switch_pfs "$netns" "${pfs[$netns]}"
+            sleep 2
+            switch_netns_vfs "$netns"
+        done
         sleep $TIMEOUT
     done
     return $status
 }
 
-read_confs "$conf_file"
+if [[ -n "$conf_file" ]];then
+    unset netnses
+    unset pfs
+
+    declare -a netnses
+    declare -A pfs
+
+    read_confs "$conf_file"
+fi
 
 variables_check
 let status=$status+$?
-
 if [[ "$status" != "0" ]];then
     echo "ERROR: empty var..."
     exit $status
 fi
 
-get_pcis_from_pfs "$worker_netns" "${pfs[@]}"
+for netns in ${netnses[@]};do
+    netns_create "$netns"
+    let status=$status+$?
+    if [[ "$status" != "0" ]];then
+        echo "ERROR: failed to create netns..."
+        exit $status
+    fi
+done
+
+for netns in ${netnses[@]};do
+    get_pcis_from_pfs "$netns" "${pfs[$netns]}"
+done
 
 if [[ "${#pcis[@]}" == "0" ]];then
     echo "Error: could not get pci address of interface $pf!!"
     exit 1
-fi
-
-netns_create
-let status=$status+$?
-if [[ "$status" != "0" ]];then
-    echo "ERROR: failed to create netns..."
-    exit $status
 fi
 
 main
