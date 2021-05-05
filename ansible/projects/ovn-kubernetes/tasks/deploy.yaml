@@ -1,9 +1,7 @@
 ---
+- name: Get nodes
+  include_tasks: projects/tasks/register_kind_nodes.yml
 - block:
-    - name: Get kind nodes
-      command:
-        cmd: kind get nodes --name {{ project }}
-      register: kind_nodes
     - name: Delete kube-proxy
       k8s:
         api_version: apps/v1
@@ -17,13 +15,13 @@
       command:
         cmd: docker exec {{ item[0] }} {{ item[1] }}
       with_nested:
-        - "{{ kind_nodes.stdout_lines }}"
+        - "{{ kind_nodes }}"
         - ["iptables -F KUBE-SERVICES", "iptables -F KUBE-SERVICES -t nat"]
     - name: Disable IPv6
       command:
         cmd: docker exec {{ item[0] }} {{ item[1] }}
       with_nested:
-        - "{{ kind_nodes.stdout_lines }}"
+        - "{{ kind_nodes }}"
         - ["sysctl net.ipv6.conf.all.disable_ipv6=0", "sysctl net.ipv6.conf.all.forwarding=1"]
 - name: Render ovn-kubernetes manifests
   command:

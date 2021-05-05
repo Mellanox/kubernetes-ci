@@ -1,0 +1,29 @@
+---
+- name: Initialize empty lists for holding the nodes information
+  set_fact:
+    kind_control_plane_nodes: []
+    kind_worker_nodes: []
+
+- name: Get kind nodes
+  shell:
+    cmd: kind get nodes --name {{ project }}
+  register: kind_nodes_stdout
+
+- name: Register all nodes
+  set_fact:
+    kind_nodes: "{{ kind_nodes_stdout.stdout_lines }}"
+
+- name: Register kind controle plan nodes
+  set_fact:
+    kind_control_plane_nodes: "{{ kind_control_plane_nodes + [ item ] }}"
+  loop: "{{ kind_nodes }}"
+  when:
+    - item is match(".*control-plane")
+
+- name: Register kind worker nodes
+  set_fact:
+    kind_worker_nodes: "{{ kind_worker_nodes + [ item ] }}"
+  loop: "{{ kind_nodes }}"
+  when:
+    - item is match(".*worker")
+
