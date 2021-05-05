@@ -1,0 +1,50 @@
+---
+- name: Initialize an empty list for holding the interfaces
+  set_fact:
+    mlnx_interfaces: []
+    mlnx_pfs: []
+    pfs: []
+
+- name: Get Mellanox interfaces
+  set_fact:
+    mlnx_interfaces: "{{ mlnx_interfaces + [ item ] }}"
+  when:
+    - ansible_facts.get(item) is not none
+    - ansible_facts.get(item).get('module') is not none
+    - ansible_facts[item]['module'] == 'mlx5_core'
+  loop: "{{ ansible_interfaces }}"
+
+- name: Get Mellanox pfs
+  block:
+    - name: Read /sys/class/net
+      stat:
+        path: "/sys/class/net/{{ item }}/device/sriov_numvfs"
+      loop: "{{ mlnx_interfaces }}"
+      register: files_stats
+
+    - name: Get Mellanox PFs
+      set_fact:
+        mlnx_pfs: "{{ mlnx_pfs + [ mlnx_interfaces[loop_index] ] }}"
+      loop: "{{ files_stats.results }}"
+      loop_control:
+        index_var: loop_index
+      when:
+        - item.stat.exists
+
+- name: Filter Mellanox pfs
+  block:
+    - name: Read PFs ids
+      debug:
+        msg: "{{ lookup('file', '/sys/class/net/' + item +  '/device/device') }}"
+      loop: "{{ mlnx_pfs }}"
+      register: interfaces_ids
+
+    - name: Filter Mellanox PFs
+      set_fact:
+        pfs: "{{ pfs + [ mlnx_pfs[loop_index] ] }}"
+      loop: "{{ interfaces_ids.results }}"
+      loop_control:
+        index_var: loop_index
+      when:
+        - item.msg is not in unsupported_interfaces_list
+
