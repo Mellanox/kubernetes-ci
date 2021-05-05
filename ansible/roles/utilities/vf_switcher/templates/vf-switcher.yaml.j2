@@ -1,0 +1,6 @@
+{%- for worker_index in range(num_worker | int) %}
+
+- netns: {{ kind_worker_nodes[worker_index] }}
+  pfs:
+  - {{ pfs[worker_index] }}
+{%- endfor %}

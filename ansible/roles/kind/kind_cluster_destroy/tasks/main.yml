@@ -1,4 +1,8 @@
 ---
+- name: Clean the vf-switcher service
+  include: "stop_vf_switcher.yml"
+  ignore_errors: yes
+
 - name: Destroy Kind cluster
   command:
     cmd: kind delete cluster --name {{project}}
