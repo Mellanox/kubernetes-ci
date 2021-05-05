@@ -851,7 +851,7 @@ function deploy_kind_cluster {
     local status=0
 
     ./run_kind_ci.sh --project "$project" --num-workers "$workers_number"\
-        --phases deploy-kind
+        --phases deploy-kind,utilities
     let status=$status+$?
     if [[ $status != "0" ]];then
         echo "Error: failed to create kind cluster $project!"
@@ -867,15 +867,6 @@ function deploy_kind_cluster {
             echo "Error: failed to remount workers sysfs to be rw!"
             return $status
         fi
-    fi
-
-    deploy_vf_switcher_service "${project}-worker" "$ARTIFACTS/vf-switcher.yaml" "$number_of_interfaces"
-
-    sudo systemctl restart vf-switcher
-    let status=$status+$?
-    if [[ $status != "0" ]];then
-        echo "Error: failed to start the vf-switcher service!"
-        return $status
     fi
 
     return $status
@@ -900,67 +891,6 @@ function remount_workers_sys_fs {
         echo "Error: Failed to remount the sys fs of one or more of the worker containers"
         return $status
     fi
-}
-
-function deploy_vf_switcher_service {
-    local netns="$1"
-    local conf_file_temp_name="$2"
-    local number_of_interfaces="${3:-"1"}"
-
-    local status=0
-
-    prepare_vf_switcher_confs "$netns" "$conf_file_temp_name" $(get_auto_net_device $number_of_interfaces)
-    let status=$status+$?
-    if [[ "$status" != "0" ]];then
-        echo "Error: failed to configure the vf-switcher service!"
-        return $status
-    fi
-
-    sudo mkdir -p /etc/vf-switcher
-
-    sudo cp -f $conf_file_temp_name /etc/vf-switcher/vf-switcher.yaml
-
-    cp -f $SCRIPTS_DIR/deploy/vf-netns-switcher.sh /usr/local/bin
-
-    sudo cp -f $SCRIPTS_DIR/deploy/vf-switcher.service /etc/systemd/system
-
-    sudo systemctl daemon-reload
-}
-
-function prepare_vf_switcher_confs {
-    local worker_name="$1"
-    local conf_file="$2"
-    shift 2
-    local pf_interfaces="$@"
-
-    local status=0
-
-    if [[ -z "$conf_file" ]];then
-        conf_file="$ARTIFACTS/vf-switcher.yaml"
-    fi
-
-    if [[ -z "${pf_interfaces}${worker_name}" ]];then
-        echo "Error: vf-switcher confs are missing confs: interface: $pf_interfaces, worker:$worker_name !"
-        return 1
-    fi
-
-    if [[ -f $conf_file ]];then
-        rm -rf $conf_file
-    fi
-
-    touch $conf_file
-
-    ((pf_index=0))
-    for pf_interface in $pf_interfaces; do
-        yaml_write "[0].pfs[${pf_index}]" "$pf_interface" "$conf_file"
-        let status=$status+$?
-        ((pf_index++))
-    done
-
-    yaml_write '[0].netns' "$worker_name" "$conf_file"
-    let status=$status+$?
-
-    return $status
 }
 
 function test_rdma_rping {
