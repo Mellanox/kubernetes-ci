@@ -2,6 +2,8 @@
 
 set -e
 
+ansible_dir=$(dirname $0)/ansible
+
 KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea" "ovn-kubernetes" "sriov-network-operator")
 KIND_CI_PHASES=("prepare-ci-environment" "deploy-kind" "utilities" "deploy-project" "test" "undeploy-project" "undeploy-kind")
 export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
@@ -175,7 +177,7 @@ print_params
 for phase in "${PHASES_TO_RUN[@]}"; do
   echo "=============================="
   echo "Running phase $phase"
-  ansible-playbook --inventory ansible/inventory/hosts "ansible/$phase.yaml" -e @ansible/ci_vars/kind_ci.yaml -vv
+  ansible-playbook --inventory $ansible_dir/inventory/hosts "$ansible_dir/$phase.yaml" -e @$ansible_dir/ci_vars/kind_ci.yaml -vv
 done
 
 echo "Finished running Kind CI"
