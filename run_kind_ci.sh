@@ -184,7 +184,10 @@ print_params
 for phase in "${PHASES_TO_RUN[@]}"; do
   echo "=============================="
   echo "Running phase $phase"
-  ansible-playbook --inventory $ansible_dir/inventory/hosts "$ansible_dir/$phase.yaml" -e @$ansible_dir/ci_vars/kind_ci.yaml -vv
+  ansible-playbook --inventory $ansible_dir/inventory/hosts \
+                  "$ansible_dir/$phase.yaml" \
+                  -e @$ansible_dir/ci_vars/kind_ci.yaml -vv \
+                  -e ansible_python_interpreter=/usr/bin/python3
 done
 
 echo "Finished running Kind CI"
