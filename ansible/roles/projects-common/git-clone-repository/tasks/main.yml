@@ -1,0 +1,13 @@
+---
+- name: Clone {{ project }}
+  git:
+    repo: "{{ project_repository }}"
+    dest: "{{ project_dir }}"
+  when: 'pull_request == ""'
+- name: Clone {{ project }} with pull request {{ pull_request }}
+  git:
+    repo: "{{ project_repository }}"
+    dest: "{{ project_dir }}"
+    refspec: "+refs/pull/{{ pull_request }}/head:{{ pull_request }}"
+    version: "{{ pull_request }}"
+  when: 'pull_request != ""'

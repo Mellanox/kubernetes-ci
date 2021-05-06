@@ -5,8 +5,9 @@
   remote_user: root
   collections:
     - community.kubernetes
+  roles:
+    - projects-common/assert-project-role
   tasks:
-    - include_tasks: projects/tasks/verify-project.yaml
     - name: Read {{ project }} vars
       include_vars: projects/{{ project }}/vars.yaml
     - include_tasks: projects/{{ project }}/tasks/test.yaml
