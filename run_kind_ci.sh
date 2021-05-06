@@ -11,7 +11,7 @@ export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 usage() {
   echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
   echo "                       [--num-workers <num>] [--kind-config <conf-fil>] [--kubeconfig <path>]"
-  echo "                       [-h]]"
+  echo "                       [--kind-node-image <image>] [-h]]"
   echo ""
   echo "--project              Project to run CI: ${KIND_CI_PROJECTS[*]}"
   echo "                       Required field"
@@ -21,6 +21,7 @@ usage() {
   echo "--kind-config          Kind configuration file, if provided skip rendering related parameters"
   echo "                       if provided, ignores rendering related parameters (num-workers)"
   echo "--kubeconfig           KUBECONFIG for kind cluster"
+  echo "--kind-node-image      Kind node image to use"
   echo "--pr                   Pull Request number"
   echo ""
 }
@@ -121,6 +122,10 @@ parse_args() {
       shift
       export KUBECONFIG=$1
       ;;
+    --kind-node-image)
+      shift
+      export KIND_NODE_IMAGE=$1
+      ;;
     --pr)
       shift
       if ! [[ "$1" =~ ^[0-9]+$ ]]; then
@@ -156,6 +161,7 @@ set_default_params() {
   export WORKSPACE=${WORKSPACE:-"/tmp/kind_ci/$PROJECT"}
   export KIND_NUM_WORKER=${KIND_NUM_WORKER:-2}
   export KUBECONFIG=${KUBECONFIG:-$HOME/admin.conf}
+  export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-''}"
 }
 
 print_params() {
@@ -165,6 +171,7 @@ print_params() {
   echo "PHASES_TO_RUN   = ${PHASES_TO_RUN[*]}"
   echo "PROJECT         = ${PROJECT}"
   echo "KIND_NUM_WORKER = ${KIND_NUM_WORKER}"
+  echo "KIND_NODE_IMAGE = ${KIND_NODE_IMAGE}"
   echo "KIND_CONFIG     = ${KIND_CONFIG}"
   echo "KUBECONFIG      = ${KUBECONFIG}"
   echo "PULL_REQUEST    = ${PULL_REQUEST}"

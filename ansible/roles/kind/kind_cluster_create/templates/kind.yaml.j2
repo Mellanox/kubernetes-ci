@@ -9,8 +9,14 @@ featureGates:
 {% endif %}
 nodes:
  - role: control-plane
+{% if kind_node_image %}
+   image: {{ kind_node_image }}
+{% endif %}
 
 {%- for _ in range(num_worker | int) %}
 
  - role: worker
+{% if kind_node_image %}
+   image: {{ kind_node_image }}
+{% endif %}
 {%- endfor %}
