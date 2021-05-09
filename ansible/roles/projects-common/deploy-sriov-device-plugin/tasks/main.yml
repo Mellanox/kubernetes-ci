@@ -1,0 +1,37 @@
+---
+- include: "{{ playbook_dir }}/roles/projects-common/get-mlx-interfaces-from-vf-switcher.yaml"
+- name: Render SR-IOV device plugin ConfigMap
+  template:
+    src: sriov-dp-config-map.yaml.j2
+    dest: "{{ artifacts }}/sriov-dp-config-map.yaml"
+- name: Deploy SR-IOV device plugin ConfigMap
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/sriov-dp-config-map.yaml"
+  include_role:
+    name: projects-common/deploy-kubernetes-object-from-file
+- name: Download SR-IOV device plugin daemonset
+  get_url:
+    url: https://raw.githubusercontent.com/k8snetworkplumbingwg/sriov-network-device-plugin/master/deployments/k8s-v1.16/sriovdp-daemonset.yaml
+    dest: "{{ artifacts }}/sriovdp-daemonset.yaml"
+- name: Deploy SR-IOV device plugin
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/sriovdp-daemonset.yaml"
+  include_role:
+    name: projects-common/deploy-kubernetes-object-from-file
+- name: Get SR-IOV device plugin pods
+  k8s_info:
+    kind: Pod
+    label_selectors:
+      - app = sriovdp
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"
+  register: pod_list
+- name: Verify SR-IOV device plugin pods running
+  vars:
+    pod_namespace: kube-system
+  block:
+    - vars:
+        pod_name: "{{ item.metadata.name }}"
+      include_role:
+        name: projects-common/verify-pod-running
+      loop: "{{ pod_list.resources }}"

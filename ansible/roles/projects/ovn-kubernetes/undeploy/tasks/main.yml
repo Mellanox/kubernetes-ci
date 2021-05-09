@@ -9,3 +9,5 @@
     loop_var: ovn_kubernetes_object
 - include_role:
     name: projects-common/undeploy-multus
+- include_role:
+    name: projects-common/undeploy-sriov-device-plugin

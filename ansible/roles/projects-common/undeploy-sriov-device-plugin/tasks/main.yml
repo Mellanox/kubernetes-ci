@@ -1,0 +1,11 @@
+---
+- name: Undeploy SR-IOV device plugin config
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/sriov-dp-config-map.yaml"
+  include_role:
+    name: projects-common/undeploy-kubernetes-object-from-file
+- name: Undeploy SR-IOV device plugin daemonset
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/sriovdp-daemonset.yaml"
+  include_role:
+    name: projects-common/undeploy-kubernetes-object-from-file

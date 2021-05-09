@@ -24,3 +24,5 @@
 - include_tasks: deploy.yaml
 - include_role:
     name: projects-common/deploy-multus
+- include_role:
+    name: projects-common/deploy-sriov-device-plugin

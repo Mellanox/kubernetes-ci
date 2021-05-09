@@ -1,2 +1,4 @@
 ---
 ovn_k8s_deployments: [ovn-setup, ovs-node, ovnkube-db, ovnkube-master, ovnkube-node]
+device_plugin_prefix: "{{ lookup('env', 'DEVICE_PLUGIN_PREFIX') }}"
+device_plugin_resource: "{{ lookup('env', 'DEVICE_PLUGIN_RESOURCE') }}"
