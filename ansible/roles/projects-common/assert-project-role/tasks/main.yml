@@ -1,7 +1,7 @@
 ---
 - name: Check project role exists
   stat:
-    path: "{{ playbook_dir }}/projects/{{ project }}"
+    path: "{{ playbook_dir }}/roles/projects/{{ project }}"
   register: project_stat
 - block:
     - debug:

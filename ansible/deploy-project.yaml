@@ -5,23 +5,7 @@
     - projects-common/assert-project-role
   tasks:
     - name: Read {{ project }} vars
-      include_vars: projects/{{ project }}/vars.yaml
-    - name: Create temp directory for {{ project }}
-      tempfile:
-        state: directory
-        suffix: "{{ project }}"
-      register: project_dir
-    - name: Clone {{ project }}
-      git:
-        repo: "{{ project_repo }}"
-        dest: "{{ project_dir.path }}"
-      when: 'pull_request == ""'
-    - name: Clone {{ project }} with pull request {{ pull_request }}
-      git:
-        repo: "{{ project_repo }}"
-        dest: "{{ project_dir.path }}"
-        refspec: "+refs/pull/{{ pull_request }}/head:{{ pull_request }}"
-        version: "{{ pull_request }}"
-      when: 'pull_request != ""'
-    - include_tasks: projects/{{ project }}/tasks/build.yaml
-    - include_tasks: projects/{{ project }}/tasks/deploy.yaml
+      include_vars: roles/projects/{{ project }}/vars.yml
+    - name: Deploy {{ project }}
+      include_role:
+        name: projects/{{ project }}/deploy
