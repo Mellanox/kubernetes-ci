@@ -1,9 +1,0 @@
----
-project_repo: "https://github.com/ovn-org/ovn-kubernetes"
-ovn_image:  ovn-kube-f
-ovn_k8s_deployments: [ovn-setup, ovs-node, ovnkube-db, ovnkube-master, ovnkube-node]
-pod1_name: "{{ project }}-test-pod1"
-pod2_name: "{{ project }}-test-pod2"
-pods_names: ["{{ pod1_name }}", "{{ pod2_name }}"]
-pod_image: networkstatic/iperf3
-pod_ips: []
