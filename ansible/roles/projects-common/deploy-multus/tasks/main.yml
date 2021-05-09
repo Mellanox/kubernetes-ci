@@ -1,0 +1,27 @@
+---
+- name: Download multus daemonset file
+  get_url:
+    url: https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/images/multus-daemonset.yml
+    dest: "{{ artifacts }}/multus-daemonset.yml"
+- name: Deploy Multus
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/multus-daemonset.yml"
+  include_role:
+    name: projects-common/deploy-kubernetes-object-from-file
+- name: Get Multus pods
+  k8s_info:
+    kind: Pod
+    label_selectors:
+      - name = multus
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"
+  register: pod_list
+- name: Verify Multus pods running
+  vars:
+    pod_namespace: kube-system
+  block:
+    - vars:
+        pod_name: "{{ item.metadata.name }}"
+      include_role:
+        name: projects-common/verify-pod-running
+      loop: "{{ pod_list.resources }}"

@@ -1,8 +1,11 @@
 ---
 - name: Undeploy ovn-kubernetes components
-  k8s:
-    src: "{{ artifacts }}/{{ item }}.yaml"
-    state: absent
-    kubeconfig: "{{ kubeconfig }}"
-    context: "{{ k8s_context }}"
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/{{ ovn_kubernetes_object }}.yaml"
+  include_role:
+    name: projects-common/undeploy-kubernetes-object-from-file
   loop: "{{ ovn_k8s_deployments|reverse|list }}"
+  loop_control:
+    loop_var: ovn_kubernetes_object
+- include_role:
+    name: projects-common/undeploy-multus
