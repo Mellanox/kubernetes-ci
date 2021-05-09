@@ -1,0 +1,19 @@
+---
+- name: Create temp directory for {{ project }}
+  tempfile:
+    state: directory
+    suffix: "{{ project }}"
+  register: temp_dir
+- set_fact:
+    project_dir: "{{ temp_dir.path }}"
+- include_role:
+    name: projects-common/git-clone-repository
+- name: Build ovn-kubernetes image
+  make:
+    chdir: "{{ project_dir }}/dist/images"
+    target: fedora
+- name: Load image into cluster
+  command:
+    cmd: kind load docker-image {{ ovn_image }} --name {{ project }}
+- include_tasks: clean-kub-proxy.yaml
+- include_tasks: deploy.yaml

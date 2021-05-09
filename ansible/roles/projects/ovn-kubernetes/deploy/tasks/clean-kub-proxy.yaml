@@ -1,0 +1,25 @@
+---
+- include_role:
+    name: projects-common/register-kind-nodes
+- block:
+    - name: Delete kube-proxy
+      k8s:
+        api_version: apps/v1
+        kind: DaemonSet
+        namespace: kube-system
+        name: kube-proxy
+        state: absent
+        kubeconfig: "{{ kubeconfig }}"
+        context: "{{ k8s_context }}"
+    - name: Clean kube-proxy iptables
+      command:
+        cmd: docker exec {{ item[0] }} {{ item[1] }}
+      with_nested:
+        - "{{ kind_nodes }}"
+        - ["iptables -F KUBE-SERVICES", "iptables -F KUBE-SERVICES -t nat"]
+    - name: Disable IPv6
+      command:
+        cmd: docker exec {{ item[0] }} {{ item[1] }}
+      with_nested:
+        - "{{ kind_nodes }}"
+        - ["sysctl net.ipv6.conf.all.disable_ipv6=0", "sysctl net.ipv6.conf.all.forwarding=1"]
