@@ -1,0 +1,6 @@
+---
+pod1_name: "{{ project }}-test-pod1"
+pod2_name: "{{ project }}-test-pod2"
+pods_names: ["{{ pod1_name }}", "{{ pod2_name }}"]
+pod_image: networkstatic/iperf3
+pod_ips: []

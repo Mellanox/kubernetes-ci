@@ -1,9 +1,11 @@
 ---
-- include_tasks: deploy-test-pods.yaml
+- include_tasks: deploy-test-pods.yml
   loop: "{{ pods_names }}"
   loop_control:
     loop_var: pod_name
 - name: Send traffic between pods
+  collections:
+    - community.kubernetes
   block:
     - k8s_exec:
         namespace: default
