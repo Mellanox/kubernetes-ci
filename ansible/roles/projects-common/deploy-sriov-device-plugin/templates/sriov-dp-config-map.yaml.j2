@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sriovdp-config
+  namespace: kube-system
+data:
+  config.json: |
+    {
+        "resourceList": [{
+                "resourcePrefix": "{{ device_plugin_prefix }}",
+                "resourceName": "{{ device_plugin_resource }}",
+                "selectors": {
+                    "vendors": ["15b3"],
+                    "devices": ["1018"],
+                    "pfNames": {{ pf_names | to_json }}
+                }
+            }
+        ]
+    }
