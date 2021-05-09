@@ -7,5 +7,7 @@
     - projects-common/assert-project-role
   tasks:
     - name: Read {{ project }} vars
-      include_vars: projects/{{ project }}/vars.yaml
-    - include_tasks: projects/{{ project }}/tasks/test.yaml
+      include_vars: roles/projects/{{ project }}/vars.yml
+    - name: Test {{ project }}
+      include_role:
+        name: projects/{{ project }}/test
