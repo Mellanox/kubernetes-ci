@@ -1,10 +1,9 @@
 ---
 - name: Deploy {{ deployment_object }}
-  k8s:
-    src: "{{ project_dir }}/dist/yaml/{{ deployment_object }}.yaml"
-    state: present
-    kubeconfig: "{{ kubeconfig }}"
-    context: "{{ k8s_context }}"
+  vars:
+    kubernetes_object_file: "{{ project_dir }}/dist/yaml/{{ deployment_object }}.yaml"
+  include_role:
+    name: projects-common/deploy-kubernetes-object-from-file
 - name: Get {{ deployment_object }} pods list
   k8s_info:
     kind: Pod

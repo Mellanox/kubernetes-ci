@@ -22,3 +22,5 @@
     cmd: sudo kind load docker-image {{ ovn_image }} --name {{ project }}
 - include_tasks: clean-kub-proxy.yaml
 - include_tasks: deploy.yaml
+- include_role:
+    name: projects-common/deploy-multus

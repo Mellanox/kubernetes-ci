@@ -1,0 +1,7 @@
+---
+- name: Deploy {{ kubernetes_object_file }}
+  k8s:
+    src: "{{ kubernetes_object_file }}"
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"

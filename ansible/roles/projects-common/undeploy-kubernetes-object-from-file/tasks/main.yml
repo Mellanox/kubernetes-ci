@@ -1,0 +1,7 @@
+---
+- name: Undeploy {{ kubernetes_object_file }}
+  k8s:
+    src: "{{ kubernetes_object_file }}"
+    state: absent
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"

@@ -1,0 +1,6 @@
+---
+- name: Undeploy Multus
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/multus-daemonset.yml"
+  include_role:
+    name: projects-common/undeploy-kubernetes-object-from-file
