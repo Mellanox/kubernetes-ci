@@ -1,5 +1,5 @@
 ---
-- name: Undeploy ovn-kubernetes project
+- name: Undeploy {{ project }} project
   hosts: kind_nodes
   become: true
   remote_user: root
@@ -7,5 +7,7 @@
     - projects-common/assert-project-role
   tasks:
     - name: Read {{ project }} vars
-      include_vars: projects/{{ project }}/vars.yaml
-    - include_tasks: projects/{{ project }}/tasks/undeploy.yaml
+      include_vars: roles/projects/{{ project }}/vars.yml
+    - name: Deploy {{ project }}
+      include_role:
+        name: projects/{{ project }}/undeploy
