@@ -5,7 +5,7 @@ pf=""
 conf_file=""
 pci=""
 
-TIMEOUT="10"
+TIMEOUT="${TIMEOUT:-2}"
 POLL_INTERVAL="1"
 
 while test $# -gt 0; do
