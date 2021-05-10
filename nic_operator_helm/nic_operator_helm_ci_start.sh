@@ -17,6 +17,10 @@ export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
 
+export KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-'harbor.mellanox.com/cloud-orchestration/kind-node:latest'}
+
+project="nic-operator-helm"
+
 function download_and_build {
     status=0
     if [ "$RECLONE" != true ] ; then
@@ -28,7 +32,9 @@ function download_and_build {
     build_nic_operator_image
     let status=$status+$?
 
-    pull_network_operator_images
+    upload_image_to_kind "mellanox/network-operator:latest" "${project}"
+
+    pull_network_operator_images "${project}"
     let status=$status+$?
 
     set_network_operator_images_variables
@@ -145,8 +151,6 @@ function deploy_operator {
 
     sleep 5
 
-    unlabel_master
-
     wait_nic_policy_states "" "state-ofed"
     let status=$status+$?
     if [ "$status" != 0 ]; then
@@ -172,10 +176,11 @@ function main {
 
     pushd $WORKSPACE
 
-    deploy_k8s_bare
+    deploy_kind_cluster "$project" "1" "2"
     if [ $? -ne 0 ]; then
-        echo "Failed to deploy k8s!"
-        exit 1
+        echo "Failed to deploy k8s"
+        popd
+        return 1
     fi
 
     deploy_calico

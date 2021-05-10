@@ -4,7 +4,8 @@ set -e
 
 ansible_dir=$(dirname $0)/ansible
 
-KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea" "ovn-kubernetes" "sriov-network-operator" "nic-operator-kind")
+KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea" "ovn-kubernetes"\
+                  "sriov-network-operator" "nic-operator-kind" "nic-operator-helm")
 KIND_CI_PHASES=("prepare-ci-environment" "deploy-kind" "utilities" "deploy-project" "test" "undeploy-project" "undeploy-kind")
 export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 
