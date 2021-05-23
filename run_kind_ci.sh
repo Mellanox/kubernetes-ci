@@ -12,7 +12,8 @@ export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 usage() {
   echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
   echo "                       [--num-workers <num>] [--kind-config <conf-fil>] [--kubeconfig <path>]"
-  echo "                       [--kind-node-image <image>] [--interfaces-type <interfaces-type>] [-h]]"
+  echo "                       [--kind-node-image <image>] [--interfaces-type <interfaces-type>]"
+  echo "                       [--pr <num>] [--num-vfs <num>] [--switchdev] [-h]]"
   echo ""
   echo "--project              Project to run CI: ${KIND_CI_PROJECTS[*]}"
   echo "                       Required field"
@@ -25,6 +26,8 @@ usage() {
   echo "--kubeconfig           KUBECONFIG for kind cluster"
   echo "--kind-node-image      Kind node image to use"
   echo "--pr                   Pull Request number"
+  echo "--num-vfs              Number of VFs to create in utilities phase. DEFAULT: 4 VFs. if -1 the create-vfs role will be skipped"
+  echo "--switchdev            Enable switchdev mode for created VFs in utilities phase"
   echo ""
 }
 
@@ -141,6 +144,18 @@ parse_args() {
       fi
       export PULL_REQUEST=$1
       ;;
+    --num-vfs)
+      shift
+      if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "Invalid num-vfs: $1"
+        usage
+        exit 1
+      fi
+      export NUM_VFS=$1
+      ;;
+    --switchdev)
+      export SWITCHDEV=true
+      ;;
 
     -h | --help)
       usage
@@ -173,6 +188,8 @@ set_default_params() {
   export KUBECONFIG=${KUBECONFIG:-$HOME/admin.conf}
   export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-''}"
   export INTERFACES_TYPE=${INTERFACES_TYPE:-"eth"}
+  export NUM_VFS="${NUM_VFS:-4}"
+  export SWITCHDEV="${SWITCHDEV:-false}"
 }
 
 print_params() {
@@ -187,6 +204,8 @@ print_params() {
   echo "KUBECONFIG      = ${KUBECONFIG}"
   echo "PULL_REQUEST    = ${PULL_REQUEST}"
   echo "INTERFACES_TYPE = ${INTERFACES_TYPE}"
+  echo "NUM_VFS         = ${NUM_VFS}"
+  echo "SWITCHDEV       = ${SWITCHDEV}"
   echo ""
 }
 

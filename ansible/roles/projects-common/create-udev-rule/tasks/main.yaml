@@ -1,0 +1,16 @@
+---
+- name: Get mellanox intefaces
+  include_role:
+    name: projects-common/get-mlx-interfaces
+- include: get-pf-info.yaml
+  loop: "{{ pfs }}"
+  loop_control:
+    loop_var: pf
+- name: Create udev rule to persist PF name
+  template:
+    src: 20-persistent-net.rules.j2
+    dest: /etc/udev/rules.d/20-persistent-net.rules
+- name: Reload Udev rules
+  command:
+    cmd: udevadm control --reload-rules
+

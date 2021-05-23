@@ -1,0 +1,13 @@
+---
+- include_role:
+    name: projects-common/clear-vfs
+- name: Create {{ num_vfs }} VFs for PF {{ pf }}
+  shell:
+    sudo create_vfs.sh -i "{{ pf }}" -v "{{ num_vfs }}"
+  when: not is_switchdev
+
+- name: Create {{ num_vfs }} VFs for PF {{ pf }}
+  shell:
+    sudo create_vfs.sh -i "{{ pf }}" -v "{{ num_vfs }}" --switchdev
+  when: is_switchdev
+

@@ -2,4 +2,7 @@
 - name: Run Kind CI utilities
   hosts: kind_nodes
   roles:
-    - roles/utilities/vf_switcher
+    - role: utilities/create-vfs
+      when: num_vfs | int >= 0
+    - utilities/vf_switcher
+

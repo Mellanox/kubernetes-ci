@@ -1,6 +1,7 @@
 ---
 - name: Get mellanox intefaces
-  include: "{{ playbook_dir }}/roles/projects-common/get_mlx_interfaces.yml"
+  include_role:
+    name: projects-common/get-mlx-interfaces
 
 - name: Get worker nodes
   include_role:
