@@ -595,7 +595,7 @@ function create_rdma_test_pod {
 
 function create_gpu_direct_test_pod {
     local pod_name=$1
-    local rdma_resource_name=rdma/$2
+    local rdma_resource_name=$2
     local image="$3"
     local network="$4"
 
@@ -917,8 +917,9 @@ function test_gpu_write_bandwidth {
     /usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1
     echo "$pod_name1 has ip ${ip_1}"
 
-    local rdma_resource=$(/usr/local/bin/kubectl exec -i "$pod_name1" --\
-     ls /sys/class/infiniband | head -n 1| cut -d" " -f1)
+    if ! rdma_resource=$(kubectl exec -t cuda-test-pod-1 -- ls /sys/class/net/net1/device/infiniband); then
+        rdma_resource=$(kubectl exec -t cuda-test-pod-1 -- ls /sys/class/infiniband | head -n 1 | awk '{print $1}')
+    fi
 
     screen -S gpu_server -d -m bash -x -c "kubectl exec -t $pod_name1 -- ib_write_bw -d $rdma_resource -F -R -q 2 --use_cuda=0"
     sleep 20
@@ -992,12 +993,13 @@ function test_gpu_direct {
     local test_pod_1_name='cuda-test-pod-1'
     local image="$1"
     local network="$2"
+    local requested_resource="${3:-rdma/rdma_shared_devices_a}"
 
     echo "Testing GPU direct."
     echo ""
     echo "Creating testing pods."
 
-    create_gpu_direct_test_pod $test_pod_1_name rdma_shared_devices_a "$image" "$network"
+    create_gpu_direct_test_pod $test_pod_1_name "$requested_resource" "$image" "$network"
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo "Error: error in creating $test_pod_1_name!"

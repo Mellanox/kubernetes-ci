@@ -283,6 +283,65 @@ function test_ofed_and_rdma {
     fi
 }
 
+function test_nv_peer_mem_with_host_device {
+    local resource_name_prefix="nvidia.com"
+    local resource_name="hostdev"
+
+    status=0
+
+    deploy_gpu_operator
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in deploying the GPU operator."
+        return $status
+    fi
+
+    local sample_file="$ARTIFACTS"/ofed-host-device-nv-peer-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+    configure_host_device "$sample_file" "$resource_name_prefix" "$resource_name"
+    configure_nv_peer_mem "$sample_file"
+
+    nic_policy_create "$sample_file"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    test_ofed_drivers
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Ofed modules failed!"
+        return $status
+    fi
+
+    test_gpu_direct "harbor.mellanox.com/cloud-orchestration/cuda-perftest:Ubuntu20.04-cuda-devel-11.2.1"\
+        "$HOSTDEVICE_NETWORK_DEFAULT_NAME" "${resource_name_prefix}/${resource_name}"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: nv-peer-mem driver with host device testing Failed!"
+        return $status
+    fi
+
+    delete_nic_cluster_policies
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+
+    undeploy_gpu_operator
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Couldn't undeploy the GPU operator!"
+        return $status
+    fi
+}
+
 function test_nv_peer_mem {
     status=0
 
@@ -653,6 +712,13 @@ function main {
     fi
 
     test_ofed_and_host_device
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Test deploying nv-peer-mem and host device failed!!"
+        exit_code $status
+    fi
+
+    test_nv_peer_mem_with_host_device
     let status=$status+$?
     if [[ "$status" != "0" ]]; then
         echo "Error: Test deploying OFED and host device failed!!"
