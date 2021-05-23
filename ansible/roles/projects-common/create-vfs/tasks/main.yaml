@@ -1,0 +1,6 @@
+---
+- include_role:
+    name: projects-common/clear-vfs
+- name: Create {{ num_vfs }} VFs for PF {{ pf }}
+  shell:
+    echo {{ num_vfs }} > /sys/class/net/{{ pf }}/device/sriov_numvfs

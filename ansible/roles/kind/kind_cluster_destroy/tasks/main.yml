@@ -6,3 +6,11 @@
 - name: Destroy Kind cluster
   command:
     cmd: kind delete cluster --name {{project}}
+
+- include_role:
+    name: projects-common/get-mlx-interfaces
+- include_role:
+    name: projects-common/clear-vfs
+  loop: "{{ pfs }}"
+  loop_control:
+    loop_var: pf

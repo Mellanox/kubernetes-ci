@@ -1,0 +1,4 @@
+---
+- name: Clear VFs for PF {{ pf }}
+  shell:
+    echo 0 > /sys/class/net/{{ pf }}/device/sriov_numvfs

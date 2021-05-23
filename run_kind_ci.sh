@@ -11,7 +11,7 @@ export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 usage() {
   echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
   echo "                       [--num-workers <num>] [--kind-config <conf-fil>] [--kubeconfig <path>]"
-  echo "                       [--kind-node-image <image>] [-h]]"
+  echo "                       [--kind-node-image <image>] [--pr <num>] [--num-vfs <num>] [-h]]"
   echo ""
   echo "--project              Project to run CI: ${KIND_CI_PROJECTS[*]}"
   echo "                       Required field"
@@ -23,6 +23,7 @@ usage() {
   echo "--kubeconfig           KUBECONFIG for kind cluster"
   echo "--kind-node-image      Kind node image to use"
   echo "--pr                   Pull Request number"
+  echo "--num-vfs              Number of VFs to create in utilities phase. DEFAULT: 4 VFs"
   echo ""
 }
 
@@ -135,6 +136,15 @@ parse_args() {
       fi
       export PULL_REQUEST=$1
       ;;
+    --num-vfs)
+      shift
+      if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "Invalid num-vfs: $1"
+        usage
+        exit 1
+      fi
+      export NUM_VFS=$1
+      ;;
 
     -h | --help)
       usage
@@ -166,6 +176,7 @@ set_default_params() {
   export KIND_NUM_WORKER=${KIND_NUM_WORKER:-2}
   export KUBECONFIG=${KUBECONFIG:-$HOME/admin.conf}
   export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-''}"
+  export NUM_VFS="${NUM_VFS:-4}"
 }
 
 print_params() {
@@ -179,6 +190,7 @@ print_params() {
   echo "KIND_CONFIG     = ${KIND_CONFIG}"
   echo "KUBECONFIG      = ${KUBECONFIG}"
   echo "PULL_REQUEST    = ${PULL_REQUEST}"
+  echo "NUM_VFS         = ${NUM_VFS}"
   echo ""
 }
 

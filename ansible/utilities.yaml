@@ -4,4 +4,5 @@
   become: true
   remote_user: root
   roles:
-    - roles/utilities/vf_switcher
+    - utilities/create-vfs
+    - utilities/vf_switcher
