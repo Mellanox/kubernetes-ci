@@ -3,6 +3,5 @@
   hosts: kind_nodes
   become: true
   remote_user: root
-  tasks:
-    - debug:
-        msg: Todo
+  roles:
+    - roles/utilities/vf_switcher

@@ -1,0 +1,54 @@
+---
+- name: Get mellanox intefaces
+  include: "{{ playbook_dir }}/projects/tasks/get_mlx_interfaces.yml"
+
+- name: Get worker nodes
+  include: "{{ playbook_dir }}/projects/tasks/register_kind_nodes.yml"
+
+- name: Render vf-switcher config
+  block:
+    - name: create temporary directory to render vf-switcher configuration
+      tempfile:
+        state: directory
+        suffix: build
+      register: vf_switcher_conf_temp_dir
+    - set_fact:
+        vf_switcher_rendered_config: "{{ vf_switcher_conf_temp_dir.path }}/vf-switcher.yaml"
+    - name: Render vf-switcher configuration
+      template:
+        src: vf-switcher.yaml.j2
+        dest: "{{ vf_switcher_rendered_config }}"
+    - set_fact:
+        deploy_vf_switcher_config: "{{ vf_switcher_rendered_config }}"
+
+- name: Copy vf-switcher configuration to artifacts
+  copy:
+    src: "{{ deploy_vf_switcher_config }}"
+    dest: "{{ artifacts }}/vf-switcher.yaml"
+
+- name: Create /etc/vf-switcher directory
+  file:
+    path: "/etc/vf-switcher"
+    state: directory
+
+- name: Copy vf-switcher configuration to /etc/vf-switcher
+  copy:
+    src: "{{ deploy_vf_switcher_config }}"
+    dest: "/etc/vf-switcher/vf-switcher.yaml"
+
+- name: Copy vf-switcher script to /usr/loca/bin
+  copy:
+    src: "{{ playbook_dir }}/../deploy/vf-netns-switcher.sh"
+    dest: "/usr/local/bin/vf-netns-switcher.sh"
+    mode: +x
+
+- name: Copy vf-switcher-service file to systemd
+  copy:
+    src: "{{ playbook_dir }}/../deploy/vf-switcher.service"
+    dest: "/etc/systemd/system/vf-switcher.service"
+
+- name: Start vf-switcher service
+  systemd:
+    state: restarted
+    name: vf-switcher
+    daemon_reload: yes

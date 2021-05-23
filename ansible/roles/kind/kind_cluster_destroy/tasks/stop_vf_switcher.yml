@@ -1,0 +1,21 @@
+---
+- name: Stop the vf-switcher service
+  systemd:
+    state: stopped
+    name: vf-switcher
+    daemon_reload: yes
+
+- name: Delete the vf-switcher service file
+  file:
+    state: absent
+    path: "/etc/systemd/system/vf-switcher.service"
+
+- name: Delete the vf-switcher conf file
+  file:
+    state: absent
+    path: "/etc/vf-switcher/vf-switcher.yaml"
+
+- name: Delete the vf-switcher binary
+  file:
+    state: absent
+    path: "/usr/local/bin/vf-netns-switcher.sh"
