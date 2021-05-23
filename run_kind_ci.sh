@@ -157,6 +157,10 @@ parse_args() {
 }
 
 set_default_params() {
+  if [[ -e $ansible_dir/projects/$PROJECT/environment.sh ]];then
+    source $ansible_dir/projects/$PROJECT/environment.sh
+  fi
+
   # Set default values
   export WORKSPACE=${WORKSPACE:-"/tmp/kind_ci/$PROJECT"}
   export KIND_NUM_WORKER=${KIND_NUM_WORKER:-2}
