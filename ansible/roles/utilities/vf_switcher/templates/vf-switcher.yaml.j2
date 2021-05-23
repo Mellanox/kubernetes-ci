@@ -2,5 +2,9 @@
 
 - netns: {{ kind_worker_nodes[worker_index] }}
   pfs:
-  - {{ pfs[worker_index] }}
+{%- for index in range(pf_per_worker | int) %}
+
+  {% set pf_index = pf_per_worker | int * worker_index | int + index %}
+  - {{ pfs[pf_index] }}
+{%- endfor %}
 {%- endfor %}
