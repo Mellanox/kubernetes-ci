@@ -11,7 +11,7 @@ export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 usage() {
   echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
   echo "                       [--num-workers <num>] [--kind-config <conf-fil>] [--kubeconfig <path>]"
-  echo "                       [--kind-node-image <image>] [--pr <num>] [--num-vfs <num>] [-h]]"
+  echo "                       [--kind-node-image <image>] [--pr <num>] [--num-vfs <num>]  [--switchdev] [-h]]"
   echo ""
   echo "--project              Project to run CI: ${KIND_CI_PROJECTS[*]}"
   echo "                       Required field"
@@ -24,6 +24,7 @@ usage() {
   echo "--kind-node-image      Kind node image to use"
   echo "--pr                   Pull Request number"
   echo "--num-vfs              Number of VFs to create in utilities phase. DEFAULT: 4 VFs"
+  echo "--switchdev            Enable switchdev mode for created VFs in utilities phase"
   echo ""
 }
 
@@ -145,6 +146,9 @@ parse_args() {
       fi
       export NUM_VFS=$1
       ;;
+    --switchdev)
+      export SWITCHDEV=true
+      ;;
 
     -h | --help)
       usage
@@ -177,6 +181,7 @@ set_default_params() {
   export KUBECONFIG=${KUBECONFIG:-$HOME/admin.conf}
   export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-''}"
   export NUM_VFS="${NUM_VFS:-4}"
+  export SWITCHDEV="${SWITCHDEV:-false}"
 }
 
 print_params() {
@@ -191,6 +196,7 @@ print_params() {
   echo "KUBECONFIG      = ${KUBECONFIG}"
   echo "PULL_REQUEST    = ${PULL_REQUEST}"
   echo "NUM_VFS         = ${NUM_VFS}"
+  echo "SWITCHDEV       = ${SWITCHDEV}"
   echo ""
 }
 

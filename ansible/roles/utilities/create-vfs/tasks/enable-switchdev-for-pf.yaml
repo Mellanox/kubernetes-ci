@@ -1,0 +1,36 @@
+---
+- set_fact:
+    vfs_pci_addresses: []
+- name: Get VFs of PF {{ pf_info.name }}
+  find:
+    paths: /sys/class/net/{{ pf_info.name }}/device
+    file_type: link
+    use_regex: true
+    patterns: [ '^virtfn[0-9]+$' ]
+  register: pf_virtfn
+- name: Read VFs link
+  stat:
+    path: "{{ item.path }}"
+  loop: "{{ pf_virtfn.files }}"
+  register: virtfn_stats
+- name: Extract VFs pci addresses
+  set_fact:
+    vfs_pci_addresses: "{{ vfs_pci_addresses | default([]) + [result.stat.lnk_target | basename] }}"
+  loop: "{{ virtfn_stats.results }}"
+  loop_control:
+    loop_var: result
+- name: Unbind VFs
+  shell:
+    echo "{{ vf_pci_address }}" > /sys/class/net/{{ pf_info.name }}/device/driver/unbind
+  loop: "{{ vfs_pci_addresses }}"
+  loop_control:
+    loop_var: vf_pci_address
+- name: Enable switchdev for {{ pf_info.name }}
+  shell:
+    cmd: devlink dev eswitch set pci/{{ pf_info.pci_address }} mode switchdev
+- name: Rebind VFs
+  shell:
+    cmd: echo {{ vf_pci_address }} > /sys/class/net/{{ pf_info.name }}/device/driver/bind
+  loop: "{{ vfs_pci_addresses }}"
+  loop_control:
+    loop_var: vf_pci_address

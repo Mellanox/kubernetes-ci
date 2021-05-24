@@ -3,6 +3,7 @@
   set_fact:
     mlnx_interfaces: []
     mlnx_pfs: []
+    pf_candidates: []
     pfs: []
 
 - name: Get Mellanox interfaces
@@ -41,10 +42,14 @@
 
     - name: Filter Mellanox PFs
       set_fact:
-        pfs: "{{ pfs + [ mlnx_pfs[loop_index] ] }}"
+        pf_candidates: "{{ pf_candidates + [ mlnx_pfs[loop_index] ] }}"
       loop: "{{ interfaces_ids.results }}"
       loop_control:
         index_var: loop_index
       when:
         - item.msg is not in unsupported_interfaces_list
-
+- name: Filter out VF representors
+  include: filter-out-vf-reps.yaml
+  loop: "{{ pf_candidates }}"
+  args:
+    pf_candidate: "{{ item }}"

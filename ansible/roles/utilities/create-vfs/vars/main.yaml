@@ -1,2 +1,3 @@
 ---
 num_vfs: "{{ lookup('env', 'NUM_VFS') }}"
+is_switchdev: "{{ lookup('env', 'SWITCHDEV') | bool |default(false) }}"

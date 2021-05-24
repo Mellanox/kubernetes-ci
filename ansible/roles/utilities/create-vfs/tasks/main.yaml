@@ -6,3 +6,5 @@
   loop: "{{ pfs }}"
   loop_control:
     loop_var: pf
+- include: enable-switchdev.yaml
+  when: "is_switchdev"
