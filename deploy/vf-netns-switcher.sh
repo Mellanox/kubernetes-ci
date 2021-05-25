@@ -6,6 +6,8 @@ declare -a netnses
 
 declare -A pfs
 declare -A pcis
+declare -A pf_port_names
+declare -A pf_switch_ids
 
 TIMEOUT="${TIMEOUT:-2}"
 POLL_INTERVAL="1"
@@ -177,6 +179,52 @@ switch_netns_vfs(){
     done
 }
 
+get_pf_switch_dev_info(){
+   local worker_netns="${1}"
+    shift
+    local interfaces="$@"
+    for interface in $interfaces; do
+        interface_pci_address="${pcis[$interface]}"
+        if grep -q 'siwtchdev' <(devlink dev eswitch show pci/$interface_pci_address ); then
+          continue
+        fi
+        pf_port_names["$interface"]="$(cat /sys/class/net/${interface}/phys_port_name)"
+        pf_switch_ids["$interface"]="$(cat /sys/class/net/${interface}/phys_switch_id)"
+    done
+}
+
+switch_netns_vf_representors(){
+    local worker_netns="${1:-$netns}"
+    for pf in ${pfs["$worker_netns"]};do
+        switch_interface_vf_representors "$pf" "$worker_netns"
+    done
+}
+
+switch_interface_vf_representors(){
+    local pf_name="$1"
+    local worker_netns=$2
+
+    if [[ -z "${pf_switch_ids[$pf_name]}" ]] || [[ -z ${pf_port_names[$pf_name]:1} ]];then
+        echo "$pf_name does not have pf_switch_id or pf_port_name, assuming not switchdev..."
+        return 0
+    fi
+
+    for interface in $(ls /sys/class/net);do
+        phys_switch_id=$(cat /sys/class/net/$interface/phys_switch_id)
+        if [[ "$phys_switch_id" != "${pf_switch_ids[$pf_name]}" ]]; then
+            continue
+        fi
+        phys_port_name=$(cat /sys/class/net/$interface/phys_port_name)
+        phys_port_name_pf_index=${phys_port_name%vf*}
+        phys_port_name_pf_index=${phys_port_name_pf_index#pf}
+        if [[ "$phys_port_name_pf_index" != "${pf_port_names[$pf_name]:1}"  ]]; then
+            continue
+        fi
+        echo "Switching VF representor $interface of PF $pf_name to netns $worker_netns"
+        switch_vf $interface $worker_netns
+    done
+}
+
 switch_interface_vfs(){
     local pf_name="$1"
     local worker_netns="${2:-$netns}"
@@ -248,6 +296,8 @@ main(){
             switch_pfs "$netns" "${pfs[$netns]}"
             sleep 2
             switch_netns_vfs "$netns"
+            sleep 2
+            switch_netns_vf_representors "$netns" "${pfs[$netns]}"
         done
         sleep $TIMEOUT
     done
@@ -282,6 +332,7 @@ done
 
 for netns in ${netnses[@]};do
     get_pcis_from_pfs "$netns" "${pfs[$netns]}"
+    get_pf_switch_dev_info "$netns" "${pfs[$netns]}"
 done
 
 if [[ "${#pcis[@]}" == "0" ]];then
