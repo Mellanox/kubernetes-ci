@@ -19,6 +19,15 @@ function exit_code {
 function test_sriov_operator_e2e {
     pushd $WORKSPACE/sriov-network-operator
 
+    # TODO: Sometimes the config daemon fails to discover the card
+    # pfs, until the root cause is determined, deleting the
+    # the config daemon pod would solve the issue.
+
+    local config_daemon_info=$(kubectl get pods -A -l app=sriov-network-config-daemon | grep -v NAME)
+    kubectl delete pod -n $(awk '{print $1}' <<< $config_daemon_info)\
+        $(awk '{print $2}' <<< $config_daemon_info)
+
+
     make test-e2e-k8s
     let status=$status+$?
     if [ "$status" != 0 ]; then
