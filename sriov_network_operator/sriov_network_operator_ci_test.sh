@@ -16,22 +16,32 @@ function exit_code {
     exit $rc
 }
 
-function main {
-    status=0
-
-    pushd $WORKSPACE/sriov-network-operator 
+function test_sriov_operator_e2e {
+    pushd $WORKSPACE/sriov-network-operator
 
     make test-e2e-k8s
-    let status=status+$?
+    let status=$status+$?
     if [ "$status" != 0 ]; then
         echo "Error: error in e2e testing!"
         popd
+        return $status
+    fi
+
+    popd
+}
+
+function main {
+    status=0
+
+    echo "all tests succeeded!!"
+
+    test_sriov_operator_e2e
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error testing SRIOV-operator!"
         exit_code $status
     fi
-    
-    echo "all tests succeeded!!"
-    
-    popd
+
     exit_code $status
 }
 
