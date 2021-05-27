@@ -1,7 +1,11 @@
 ---
-- name: Get mellanox intefaces
-  include_role:
+- include_role:
     name: projects-common/get-mlx-interfaces
+- include_role:
+    name: projects-common/create-vfs
+  loop: "{{ pfs }}"
+  loop_control:
+    loop_var: pf
 - include: get-pf-info.yaml
   loop: "{{ pfs }}"
   loop_control:
@@ -10,7 +14,33 @@
   template:
     src: 20-persistent-net.rules.j2
     dest: /etc/udev/rules.d/20-persistent-net.rules
-- name: Reload Udev rules
-  command:
-    cmd: udevadm control --reload-rules
-
+- name: Create udev rule to for VF representor names
+  block:
+    - set_fact:
+        pf_info_extend: "{{ pf_info_extend |  default([]) + [ pf_info | combine({'phys_switch_id': phys_switch_id, 'phys_port_name': phys_port_name}) ] }}"
+      vars:
+        phys_switch_id: "{{ lookup('file', '/sys/class/net/' + pf_info.name + '/phys_switch_id') }}"
+        phys_port_name: "{{ lookup('file', '/sys/class/net/' + pf_info.name + '/phys_port_name') }}"
+      loop: "{{ pf_infos }}"
+      loop_control:
+        loop_var: pf_info
+    - set_fact:
+        pf_infos: "{{ pf_info_extend }}"
+    - template:
+        src: 20-switchdev-vf-rep-names.rules.j2
+        dest: /etc/udev/rules.d/20-switchdev-vf-rep-names.rules
+    - copy:
+        src: switchdev-vf-link-name.sh
+        dest: /etc/udev/switchdev-vf-link-name.sh
+        mode: "0755"
+- name: Reload Udev rules and trigger VF representor names Udev rule
+  block:
+    - command:
+        cmd: udevadm control --reload-rules
+    - command:
+        cmd: udevadm trigger --action add --attr-match=subsystem=net
+- include_role:
+    name: projects-common/clear-vfs
+  loop: "{{ pfs }}"
+  loop_control:
+    loop_var: pf

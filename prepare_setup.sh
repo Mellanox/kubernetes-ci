@@ -320,10 +320,14 @@ skopeo_install(){
 }
 
 create_udev_rule(){
-    ansible-playbook --inventory $ansible_dir/inventory/hosts \
+    ansible-playbook --inventory ansible/inventory/hosts \
                   "ansible/create-udev-rule.yaml" \
-                  -e interfaces_type="both" -vv \
-                  -e ansible_python_interpreter=/usr/bin/python3
+                  -e @ansible/ci_vars/kind_ci.yaml \
+                  -e interfaces_type="both" \
+                  -e num_vfs="4" \
+                  -e '{is_switchdev: True}' \
+                  -e ansible_python_interpreter=/usr/bin/python3 \
+                  -vv
     return $?
 }
 
