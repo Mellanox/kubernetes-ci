@@ -34,6 +34,8 @@ function main {
 
     delete_nic_operator_via_helm
 
+    undeploy_gpu_operator
+
     general_cleaning
 
     stop_kind_cluster "${project}"

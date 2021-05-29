@@ -75,7 +75,10 @@ function configure_helm_values {
     yaml_write "ofedDriver.repository" "$OFED_DRIVER_REPO" $file_name
     yaml_write "ofedDriver.version" "$OFED_DRIVER_VERSION" $file_name
 
-    yaml_write "nvPeerDriver.deploy" "false" $file_name
+    yaml_write "nvPeerDriver.deploy" "true" $file_name
+    yaml_write "nvPeerDriver.image" "$NV_PEER_DRIVER_IMAGE" $file_name
+    yaml_write "nvPeerDriver.repository" "$NV_PEER_DRIVER_REPO" $file_name
+    yaml_write "nvPeerDriver.version" "$NV_PEER_DRIVER_VERSION" $file_name
 
     local rdma_shared_device_plugin_key='devicePlugin'
 
@@ -203,6 +206,13 @@ function main {
     if [ $? -ne 0 ]; then
         echo "Failed to download and build components"
         exit 1
+    fi
+
+    deploy_gpu_operator "$project"
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in deploying the GPU operator."
+        return $status
     fi
 
     configure_helm_values
