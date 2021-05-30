@@ -2,8 +2,12 @@ project: "{{ lookup('env', 'PROJECT') }}"
 workspace: "{{ lookup('env', 'WORKSPACE') }}"
 artifacts: "{{ workspace+ '/artifacts' }}"
 num_worker: "{{ lookup('env', 'KIND_NUM_WORKER') }}"
+pf_per_worker: "{{ lookup('env', 'PF_PER_WORKER') }}"
 kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
 kind_config: "{{ lookup('env', 'KIND_CONFIG') }}"
 k8s_context: "kind-{{ project }}"
 pull_request: "{{ lookup('env', 'PULL_REQUEST') }}"
 unsupported_interfaces_list: [ "0x4115", "0x1015" ]
+pod_subnet: "{{ lookup('env', 'POD_CIDER') }}"
+service_subnet: "{{ lookup('env', 'SERVICE_CIDER') }}"
+

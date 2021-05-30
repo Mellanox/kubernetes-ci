@@ -221,7 +221,7 @@ function delete_nic_operator_namespace {
     kubectl delete namespace "$(get_nic_operator_resources_namespace)"
     let status=$status+$?
 
-    kubectl delete namespace "$(get_nic_operator_namespace)"
+    kubectl delete namespace --wait=false "$(get_nic_operator_namespace)"
     let status=$status+$?
 
     return $status

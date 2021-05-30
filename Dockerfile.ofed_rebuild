@@ -1,0 +1,5 @@
+ARG image
+FROM ${image}
+RUN KVER=$(uname -r) && echo "Rebuilding driver" && apt-get -yq update\
+                     && apt-get -yq install linux-headers-${KVER} linux-modules-${KVER}\
+                     && dkms autoinstall

@@ -4,7 +4,7 @@ set -e
 
 ansible_dir=$(dirname $0)/ansible
 
-KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea" "ovn-kubernetes" "sriov-network-operator")
+KIND_CI_PROJECTS=("sriov-cni" "sriov-ib" "antrea" "ipoib" "network-operator" "antrea" "ovn-kubernetes" "sriov-network-operator" "nic-operator-kind")
 KIND_CI_PHASES=("prepare-ci-environment" "deploy-kind" "utilities" "deploy-project" "test" "undeploy-project" "undeploy-kind")
 export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 
@@ -18,6 +18,7 @@ usage() {
   echo "--phases               Comma separated phases to run, if presented ignores --skip-phases. phases: ${KIND_CI_PHASES[*]}"
   echo "--skip-phases          Comma separated phases, phases: ${KIND_CI_PHASES[*]}"
   echo "--num-workers          Number of worker nodes. DEFAULT: 2 worker"
+  echo "--pf-per-worker        How many PFs to switch for each worker node"
   echo "--kind-config          Kind configuration file, if provided skip rendering related parameters"
   echo "                       if provided, ignores rendering related parameters (num-workers)"
   echo "--kubeconfig           KUBECONFIG for kind cluster"
@@ -108,6 +109,15 @@ parse_args() {
       fi
       export KIND_NUM_WORKER=$1
       ;;
+    --pf-per-worker)
+      shift
+      if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "Invalid pf-per-worker: $1"
+        usage
+        exit 1
+      fi
+      export PF_PER_WORKER=$1
+      ;;
     --kind-config)
       shift
       kind_conf=$1
@@ -164,6 +174,7 @@ set_default_params() {
   # Set default values
   export WORKSPACE=${WORKSPACE:-"/tmp/kind_ci/$PROJECT"}
   export KIND_NUM_WORKER=${KIND_NUM_WORKER:-2}
+  export PF_PER_WORKER=${PF_PER_WORKER:-1}
   export KUBECONFIG=${KUBECONFIG:-$HOME/admin.conf}
   export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-''}"
 }
@@ -175,6 +186,7 @@ print_params() {
   echo "PHASES_TO_RUN   = ${PHASES_TO_RUN[*]}"
   echo "PROJECT         = ${PROJECT}"
   echo "KIND_NUM_WORKER = ${KIND_NUM_WORKER}"
+  echo "PF_PER_WORKER   = ${PF_PER_WORKER}"
   echo "KIND_NODE_IMAGE = ${KIND_NODE_IMAGE}"
   echo "KIND_CONFIG     = ${KIND_CONFIG}"
   echo "KUBECONFIG      = ${KUBECONFIG}"

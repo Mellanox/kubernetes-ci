@@ -23,9 +23,9 @@ export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-''}
 export NIC_OPERATOR_PR=${NIC_OPERATOR_PR:-''}
 export NIC_OPERATOR_HARBOR_IMAGE=${NIC_OPERATOR_HARBOR_IMAGE:-${HARBOR_REGESTRY}/${HARBOR_PROJECT}/network-operator}
 
-export OFED_DRIVER_IMAGE=${OFED_DRIVER_IMAGE:-''}
-export OFED_DRIVER_REPO=${OFED_DRIVER_REPO:-''}
-export OFED_DRIVER_VERSION=${OFED_DRIVER_VERSION:-''}
+export OFED_DRIVER_IMAGE='modified-mofed'
+export OFED_DRIVER_REPO='docker.io/mellanox'
+export OFED_DRIVER_VERSION='1.0.0'
 
 export DEVICE_PLUGIN_IMAGE=${DEVICE_PLUGIN_IMAGE:-''}
 export DEVICE_PLUGIN_REPO=${DEVICE_PLUGIN_REPO:-''}
@@ -61,6 +61,8 @@ export NIC_OPERATOR_CRD_NAME=${NIC_OPERATOR_CRD_NAME:-'nicclusterpolicies.mellan
 export GPU_OPERATOR_VERSION=${GPU_OPERATOR_VERSION:-'1.5.2'}
 export GPU_OPERATOR_CRD_NAME=${GPU_OPERATOR_CRD_NAME:-'clusterpolicies.nvidia.com'}
 export GPU_OPERATOR_POLICY_NAME=${GPU_OPERATOR_POLICY_NAME:-'cluster-policy'}
+
+export MODIFIED_MOFED_CONTAINER_NAME="${OFED_DRIVER_REPO}/${OFED_DRIVER_IMAGE}-${OFED_DRIVER_VERSION}:ubuntu20.04-amd64"
 
 function configure_macvlan_custom_resource {
     local file_name="$1"
@@ -331,6 +333,7 @@ sources:
 function pull_general_component_image {
     local component_key="$1"
     local file="$2"
+    local kind_netns="$3"
 
     local image_repo=$(yaml_read "${component_key}.repository" "$file")
     local image_name=$(yaml_read "${component_key}.image" "$file")
@@ -339,11 +342,16 @@ function pull_general_component_image {
     local image="${image_repo}/${image_name}:${image_tag}"
 
     docker pull $image
+
+    if [[ -n "$kind_netns" ]];then
+        upload_image_to_kind "$image" "$kind_netns"
+    fi
 }
 
-function pull_ofed_container_image {
+function pull_and_build_ofed_container_image {
     local mofed_key="$1"
     local file="$2"
+    local kind_netns="$3"
 
     local image_repo=$(yaml_read "${mofed_key}.repository" "$file")
     local image_name=$(yaml_read "${mofed_key}.image" "$file")
@@ -352,6 +360,12 @@ function pull_ofed_container_image {
     local image="${image_repo}/${image_name}-${image_version}:$(get_distro)$(get_distro_version)-amd64"
 
     docker pull $image
+
+    prebuild_mofed_contianer $image
+
+    if [[ -n "$kind_netns" ]];then
+        upload_image_to_kind "$MODIFIED_MOFED_CONTAINER_NAME" "$kind_netns"
+    fi
 }
 
 function pull_nvpeer_container_image {
@@ -368,17 +382,19 @@ function pull_nvpeer_container_image {
 }
 
 function pull_network_operator_images {
-    pull_ofed_container_image "ofedDriver" "$IMAGES_SRC_FILE"
+    local kind_netns="$1"
 
-    pull_general_component_image "rdmaSharedDevicePlugin" "$IMAGES_SRC_FILE"
+    pull_and_build_ofed_container_image "ofedDriver" "$IMAGES_SRC_FILE" "$kind_netns"
+
+    pull_general_component_image "rdmaSharedDevicePlugin" "$IMAGES_SRC_FILE" "$kind_netns"
 
     pull_nvpeer_container_image "nvPeerDriver" "$IMAGES_SRC_FILE"
 
-    pull_general_component_image "secondaryNetwork.cniPlugins" "$IMAGES_SRC_FILE"
+    pull_general_component_image "secondaryNetwork.cniPlugins" "$IMAGES_SRC_FILE" "$kind_netns"
 
-    pull_general_component_image "secondaryNetwork.multus" "$IMAGES_SRC_FILE"
+    pull_general_component_image "secondaryNetwork.multus" "$IMAGES_SRC_FILE" "$kind_netns"
 
-    pull_general_component_image "secondaryNetwork.ipamPlugin" "$IMAGES_SRC_FILE"
+    pull_general_component_image "secondaryNetwork.ipamPlugin" "$IMAGES_SRC_FILE" "$kind_netns"
 }
 
 function configure_images_variable {
@@ -400,8 +416,6 @@ function configure_images_variable {
 }
 
 function set_network_operator_images_variables {
-    configure_images_variable "ofedDriver"
-
     configure_images_variable "rdmaSharedDevicePlugin"
 
     configure_images_variable "sriovDevicePlugin"
@@ -413,4 +427,110 @@ function set_network_operator_images_variables {
     configure_images_variable "secondaryNetwork.multus"
 
     configure_images_variable "secondaryNetwork.ipamPlugin"
+}
+
+function configure_common {
+    local file_name="$1"
+    local nic_policy_name=${2:-"$NIC_CLUSTER_POLICY_DEFAULT_NAME"}
+
+    if [[ -f "$file_name" ]];then
+        rm -f "$file_name"
+    fi
+
+    touch "$file_name"
+
+    yaml_write 'apiVersion' 'mellanox.com/v1alpha1' "$file_name"
+    yaml_write 'kind' 'NicClusterPolicy' "$file_name"
+    yaml_write 'metadata.name' "$nic_policy_name" "$file_name"
+    yaml_write 'metadata.namespace' "$(get_nic_operator_namespace)" "$file_name"
+
+    configure_images_specs "secondaryNetwork.multus" "$file_name"
+    configure_images_specs "secondaryNetwork.cniPlugins" "$file_name"
+    configure_images_specs "secondaryNetwork.ipamPlugin" "$file_name"
+}
+
+function configure_ofed {
+    local file_name="$1"
+
+    sudo apt-get purge -y rdma-core
+
+    modprobe -r rpcrdma
+
+    configure_images_specs "ofedDriver" "$file_name"
+}
+
+function configure_device_plugin {
+    local file_name="$1"
+    local rdma_resource_name=${2:-'rdma_shared_devices_a'}
+
+    local rdma_shared_device_plugin_key='devicePlugin'
+
+    if [[ -z "$(yaml_read spec.$rdma_shared_device_plugin_key $nic_operator_dir/example/crs/mellanox.com_v1alpha1_nicclusterpolicy_cr.yaml)" ]];then
+        local rdma_shared_device_plugin_key='rdmaSharedDevicePlugin'
+    fi
+
+    configure_images_specs "$rdma_shared_device_plugin_key" "$file_name"
+
+    yaml_write spec."$rdma_shared_device_plugin_key".config "\
+{
+  \"configList\": [{
+    \"resourceName\": \"$rdma_resource_name\",
+    \"rdmaHcaMax\": 1000,
+    \"devices\": [\"$SRIOV_INTERFACE\"]
+  }]
+}
+" "$file_name"
+}
+
+function configure_host_device {
+    local file_name="$1"
+    local resource_prefix=${2:-'nvidia.com'}
+    local resource_name=${3:-'hostdev'}
+
+    configure_images_specs "sriovDevicePlugin" "$file_name"
+
+    yaml_write spec.sriovDevicePlugin.config "\
+{
+  \"resourceList\": [
+    {
+      \"resourcePrefix\": \"$resource_prefix\",
+      \"resourceName\": \"$resource_name\",
+      \"selectors\": {
+        \"isRdma\": true,
+        \"drivers\": [\"mlx5_core\"]
+      }
+    }
+  ]
+}
+" "$file_name"
+}
+
+function configure_nv_peer_mem {
+    local file_name="$1"
+
+    configure_images_specs "nvPeerDriver" "$file_name"
+    yaml_write spec.nvPeerDriver.gpuDriverSourcePath "/run/nvidia/driver"\
+     "$file_name"
+}
+
+function nic_policy_create {
+    status=0
+    cr_file="$1"
+
+    kubectl create -f $cr_file
+
+    wait_nic_policy_states "$(yq r $cr_file metadata.name)"
+    let status=status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: error in creating $cr_file."
+        return $status
+    fi
+    return 0
+}
+
+function prebuild_mofed_contianer {
+    local src_image="$1"
+
+    docker build -f "${SCRIPTS_DIR}/Dockerfile.ofed_rebuild" --build-arg image="$src_image"\
+        -t "$MODIFIED_MOFED_CONTAINER_NAME" "$SCRIPTS_DIR"
 }
