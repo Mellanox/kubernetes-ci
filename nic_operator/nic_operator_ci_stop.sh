@@ -17,6 +17,8 @@ function main {
 
     collect_pods_logs
 
+    collect_nodes_info
+
     delete_nic_operator
 
     undeploy_gpu_operator
