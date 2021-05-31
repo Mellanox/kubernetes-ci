@@ -74,6 +74,40 @@ function test_sriov_operator_rping {
     return 0
 }
 
+function test_gpu_direct_using_sriov {
+    local sriov_operator_namespace=$(get_nic_operator_namespace)
+
+    local policy_name="example-sriov-policy"
+    local network_name="example-sriov-network"
+    local resource_name="mlnxnics"
+
+    create_sriov_node_policy "$policy_name" "$sriov_operator_namespace" "$resource_name"
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Failed to create the sriovnetworknodepolicy!!"
+        return $status
+    fi
+
+    create_sriov_network "$network_name" "$sriov_operator_namespace" "$resource_name"
+
+    test_gpu_direct "harbor.mellanox.com/cloud-orchestration/cuda-perftest:Ubuntu20.04-cuda-devel-11.2.1"\
+        "$network_name" "nvidia.com/${resource_name}"
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Failed to test the GPU direct using the sriov operator node policy!!"
+        return $status
+    fi
+
+    delete_sriov_node_policy "$policy_name" "$sriov_operator_namespace"
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Failed to delete the sriovnetworknodepolicy!!"
+        return $status
+    fi
+
+    return 0
+}
+
 function main {
 
     status=0
@@ -100,6 +134,13 @@ function main {
     let status=$status+$?
     if [ "$status" != 0 ]; then
         echo "Error: Testing SRIOV network operator E2E tests failed!!"
+        exit_code $status
+    fi
+
+    test_gpu_direct_using_sriov
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Testing GPU direct using the SRIOV operator Failed!!"
         exit_code $status
     fi
 

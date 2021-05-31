@@ -36,6 +36,8 @@ function main {
 
     undeploy_gpu_operator
 
+    stop_kind_cluster "${project}"
+
     general_cleaning
 
     stop_kind_cluster "${project}"
