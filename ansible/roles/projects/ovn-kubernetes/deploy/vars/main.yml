@@ -1,3 +1,4 @@
 ---
 project_repository: "https://github.com/ovn-org/ovn-kubernetes"
 ovn_image:  ovn-kube-f
+ovn_kubernetes_namespace:  ovn-kubernetes

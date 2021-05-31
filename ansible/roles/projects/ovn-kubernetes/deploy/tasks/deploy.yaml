@@ -13,9 +13,16 @@
     state: present
     kubeconfig: "{{ kubeconfig }}"
     context: "{{ k8s_context }}"
+- name: Deploy ovs-node Daemonset
+  include_tasks: deploy-objects.yaml
+  vars:
+    deployment_object: ovs-node
+# TODO Uncomment when issue of hw-offloaded to service is fixed
+#- name: Enalbe hardware offload
+#  include: enable-hardware-offload.yaml
 - name: Deploy ovn-kubernetes components
   include_tasks: deploy-objects.yaml
-  loop: "{{ ovn_k8s_deployments[1:] }}"
+  loop: "{{ ovn_k8s_deployments[2:] }}"
   loop_control:
     loop_var: deployment_object
 - name: Copy ovn-kubernetes deployment files to artifacts

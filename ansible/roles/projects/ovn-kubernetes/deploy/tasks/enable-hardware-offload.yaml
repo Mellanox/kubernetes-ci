@@ -1,0 +1,33 @@
+---
+- set_fact:
+    pod_names: []
+- name: Get ovs-node pods
+  k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ ovn_kubernetes_namespace }}"
+    label_selectors:
+      - name=ovs-node
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"
+  register: ovs_node_pods
+- set_fact:
+    pod_names: "{{ pod_names + [item.metadata.name] }}"
+  loop: "{{ ovs_node_pods.resources }}"
+- name: Enable hardware offload for ovn-kubernetes ovs pods
+  collections:
+    - community.kubernetes
+  k8s_exec:
+    namespace: "{{ ovn_kubernetes_namespace }}"
+    pod: "{{ item[0] }}"
+    command: "{{ item[1] }}"
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"
+  with_nested:
+    - "{{ pod_names }}"
+    - [ "ovs-vsctl set Open_vSwitch . other_config:hw-offload=true", "/usr/share/openvswitch/scripts/ovs-ctl stop" ]
+- vars:
+    pod_name: "{{ pod_names }}"
+    namespace: "{{ ovn_kubernetes_namespace }}"
+  include_role:
+    name: projects-common/verify-pod-running
