@@ -27,6 +27,8 @@ export CNI_BIN_DIR=${CNI_BIN_DIR:-'/opt/cni/bin'}
 
 test_pod_image='harbor.mellanox.com/cloud-orchestration/rping-test'
 
+project="nic-operator-kind"
+
 function exit_code {
     rc="$1"
     echo "All logs $LOGDIR"

@@ -487,6 +487,14 @@ function configure_host_device {
     local resource_prefix=${2:-'nvidia.com'}
     local resource_name=${3:-'hostdev'}
 
+    if [[ -n "$project" ]];then
+        local netns="${project}-worker"
+    else
+        local netns=""
+    fi
+
+    local pf_device_id=$(get_pf_device_id "$netns")
+
     configure_images_specs "sriovDevicePlugin" "$file_name"
 
     yaml_write spec.sriovDevicePlugin.config "\
@@ -497,7 +505,8 @@ function configure_host_device {
       \"resourceName\": \"$resource_name\",
       \"selectors\": {
         \"isRdma\": true,
-        \"drivers\": [\"mlx5_core\"]
+        \"drivers\": [\"mlx5_core\"],
+        \"devices\": [\"$pf_device_id\"]
       }
     }
   ]
