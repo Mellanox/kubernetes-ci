@@ -16,6 +16,8 @@ function main {
 
     collect_pods_logs
 
+    collect_nodes_info
+
     general_cleaning
  
     cp /tmp/kube*.log $LOGDIR

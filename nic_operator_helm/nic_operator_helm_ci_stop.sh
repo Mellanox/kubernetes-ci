@@ -28,6 +28,8 @@ function main {
     
     collect_pods_logs
 
+    collect_nodes_info
+
     delete_nic_operator_via_helm
 
     general_cleaning

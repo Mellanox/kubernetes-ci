@@ -20,6 +20,8 @@ function main {
 
     collect_pods_logs
 
+    collect_nodes_info
+
     collect_vf_switcher_logs
 
     sudo systemctl stop vf-switcher

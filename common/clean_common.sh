@@ -142,13 +142,56 @@ function general_cleaning {
 }
 
 function collect_pods_logs {
+    local pods_log_dir="${LOGDIR}/pods-logs"
+    local pods_info_dir="${LOGDIR}/pods-infos"
+
     if [[ -f "${LOGDIR}/start-time.log" ]];then
+
+        if [[ -d "$pods_log_dir" ]];then
+            rm -rf $pods_log_dir
+        fi
+
+        if [[ -d "$pods_info_dir" ]];then
+            rm -rf $pods_info_dir
+        fi
+
+        mkdir -p $pods_log_dir
+        mkdir -p $pods_info_dir
+
         echo "Collecting all pods logs..."
         kubectl get pods -A -o wide > ${LOGDIR}/pods-last-state.log
+        kubectl get daemonsets -A > ${LOGDIR}/daemonsets-last-state.log
 	old_IFS=$IFS
 	IFS=$'\n'
 	for pod in $(kubectl get pods -A -o custom-columns=NAMESACE:.metadata.namespace,NAME:.metadata.name);do
-            get_pod_log "$pod"
+            get_pod_log "$pod" "$pods_log_dir"
+            get_pod_info "$pod" "$pods_info_dir"
+        done
+    else
+        echo ""
+        echo "No \"${LOGDIR}/start-time.log\", Assuming job did not start."
+        echo ""
+    fi
+    IFS=$old_IFS
+}
+
+function collect_nodes_info {
+    local nodes_info_dir="${LOGDIR}/nodes-infos"
+
+    if [[ -f "${LOGDIR}/start-time.log" ]];then
+
+        if [[ -d "$nodes_info_dir" ]];then
+            rm -rf $nodes_info_dir
+        fi
+
+        mkdir -p $nodes_info_dir
+
+        echo "Collecting all nodes info..."
+        kubectl get nodes -o wide > ${LOGDIR}/nodes-last-state.log
+        old_IFS=$IFS
+        IFS=$'\n'
+        for node in $(kubectl get nodes -o custom-columns=NAME:.metadata.name);do
+            get_node_info "$node" "$nodes_info_dir"
         done
     else
         echo ""
@@ -183,18 +226,59 @@ function collect_vf_switcher_logs {
 
 function get_pod_log {
     pod_line="$1"
+    local log_dir="$2"
+
     pod_namespace="$(awk '{print $1}' <<< ${pod_line})"
     pod_name="$(awk '{print $2}' <<< ${pod_line})"
 
     echo "Collecting $pod_name logs..."
 
-    kubectl logs -n "$pod_namespace" "$pod_name" > ${LOGDIR}/${pod_name}.log
+    kubectl logs -n "$pod_namespace" "$pod_name" > ${log_dir}/${pod_name}.log
 
-    if [[ -f ${LOGDIR}/${pod_name}.log ]];then
-        echo "Logs wrote to ${LOGDIR}/${pod_name}.log!"
+    if [[ -f ${log_dir}/${pod_name}.log ]];then
+        echo "Logs wrote to ${log_dir}/${pod_name}.log!"
         echo ""
     else
-        echo "${LOGDIR}/${pod_name}.log was not found, writting logs failed!"
+        echo "${log_dir}/${pod_name}.log was not found, writting logs failed!"
+        echo ""
+    fi
+}
+
+function get_pod_info {
+    local pod_line="$1"
+    local info_dir="$2"
+
+    local pod_namespace="$(awk '{print $1}' <<< ${pod_line})"
+    local pod_name="$(awk '{print $2}' <<< ${pod_line})"
+
+    echo "Collecting $pod_name info..."
+
+    kubectl describe pod -n "$pod_namespace" "$pod_name" > ${info_dir}/${pod_name}.log
+
+    if [[ -f ${info_dir}/${pod_name}.log ]];then
+        echo "Info wrote to ${info_dir}/${pod_name}.log!"
+        echo ""
+    else
+        echo "${info_dir}/${pod_name}.log was not found, writting info failed!"
+        echo ""
+    fi
+}
+
+function get_node_info {
+    local node_line="$1"
+    local info_dir="$2"
+
+    local node_name="$(awk '{print $1}' <<< ${node_line})"
+
+    echo "Collecting $node_name info..."
+
+    kubectl describe node "$node_name" > ${info_dir}/${node_name}.log
+
+    if [[ -f ${info_dir}/${node_name}.log ]];then
+        echo "Info wrote to ${info_dir}/${node_name}.log!"
+        echo ""
+    else
+        echo "${info_dir}/${node_name}.log was not found, writting info failed!"
         echo ""
     fi
 }
