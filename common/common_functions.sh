@@ -1065,5 +1065,34 @@ function upload_image_to_kind {
 }
 
 function read_netdev_from_vf_switcher_confs {
-    yaml_read 'pf[0]' '/etc/vf-switcher/vf-switcher.yaml'
+    local netns="$1"
+    local vf_switcher_conf=${2:-'/etc/vf-switcher/vf-switcher.yaml'}
+
+    if [[ -z "$netns" ]];then
+        yaml_read '[0].pfs[0]' $vf_switcher_conf
+        return $?
+    fi
+
+    local netns_num=$(yq r $vf_switcher_conf -l)
+    ((netns_num-=1))
+
+    for index in $(seq 0 ${netns_num}); do
+        if [[ "$(yaml_read [${index}].netns $vf_switcher_conf)" == "$netns" ]];then
+            yaml_read [${index}].pfs[0] $vf_switcher_conf
+            return $?
+        fi
+    done
 }
+
+function get_pf_device_id {
+    local netns="$1"
+
+    if [[ -z "$netns" ]];then
+        local pf=$(get_auto_net_device)
+        cat /sys/class/net/$pf/device/device | cut -d x -f2
+    else
+        local pf=$(read_netdev_from_vf_switcher_confs "$netns")
+        sudo docker exec $netns cat /sys/class/net/$pf/device/device | cut -d x -f 2
+    fi
+}
+
