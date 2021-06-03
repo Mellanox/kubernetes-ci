@@ -10,8 +10,8 @@ export TIMEOUT=${TIMEOUT:-300}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export SRIOV_NETWORK_OPERATOR_REPO=${SRIOV_NETWORK_OPERATOR_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-operator.git}
-export SRIOV_NETWORK_OPERATOR_BRANCH=${SRIOV_NETWORK_OPERATOR_BRANCH:-''}
-export SRIOV_NETWORK_OPERATOR_PR=${SRIOV_NETWORK_OPERATOR_PR:-'97'}
+export SRIOV_NETWORK_OPERATOR_BRANCH=${SRIOV_NETWORK_OPERATOR_BRANCH:-'master'}
+export SRIOV_NETWORK_OPERATOR_PR=${SRIOV_NETWORK_OPERATOR_PR:-''}
 export SRIOV_NETWORK_OPERATOR_HARBOR_IMAGE=''
 
 export SRIOV_CNI_IMAGE='nfvpe/sriov-cni:v2.6'
@@ -19,6 +19,7 @@ export SRIOV_INFINIBAND_CNI_IMAGE='mellanox/ib-sriov-cni:faa9e36'
 export SRIOV_DEVICE_PLUGIN_IMAGE='quay.io/openshift/origin-sriov-network-device-plugin:4.8'
 export SRIOV_NETWORK_CONFIG_DAEMON_IMAGE='mellanox/sriov-operator-daemon:ci'
 export SRIOV_NETWORK_OPERATOR_IMAGE='mellanox/sriov-operator:ci'
+export ENABLE_ADMISSION_CONTROLLER='false'
 
 export GOPATH=${WORKSPACE}
 export PATH=/usr/local/go/bin/:$GOPATH/src/k8s.io/kubernetes/third_party/etcd:$PATH
