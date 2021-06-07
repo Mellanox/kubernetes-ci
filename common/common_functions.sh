@@ -786,10 +786,37 @@ function change_image_name {
     docker rmi $old_image_name
 }
 
+function get_net_devices_pcis {
+    # Note(abdallahyas): This function returns mellanox pfs pcis, It looks for non CX3 cards
+    # and returns the PCIs in a space separated format instead of a newline separated formate
+
+    lspci | grep Mellanox | grep -Ev 'MT27500|MT27520|Virt' | awk '{print $1}' | sed ':a;N;$!ba;s/\n/ /g'
+}
+
 function get_auto_net_device {
+    # Note(abdallahyas): This function returns non-CX3 Mellanox pfs net names in space separated format,
+    # it takes the number of interfaces required as its parameter, if the number provided is less than 1,
+    # all available interfaces will be returned. 
+    # The default behaviour is to return a single interface name, This is done to not break compatibility
+    # for the CIs.
+
     local number_of_devices=${1:-"1"}
 
-    ls -l /sys/class/net/ | grep -E $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n "$number_of_devices" | awk '{print $1}' | sed ':a;N;$!ba;s/\n/|/g') | awk '{print $9}' | sed ':a;N;$!ba;s/\n/ /g'
+    local interfaces=""
+
+    local pcis=$(get_net_devices_pcis)
+
+    local index=0
+
+    for pci in $pcis;do
+        interfaces+="$(ls /sys/bus/pci/devices/"0000:$pci"/net/) "
+        ((index++))
+        if [[ "$index" == "$number_of_devices" ]];then
+            break
+        fi
+    done
+
+    echo $interfaces
 }
 
 function deploy_k8s_bare {

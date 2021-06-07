@@ -139,6 +139,8 @@ function general_cleaning {
     collect_services_logs
 
     delete_cnis_bins_and_confs
+
+    clear_mlnx_vfs
 }
 
 function collect_pods_logs {
@@ -384,4 +386,12 @@ function delete_nic_operator {
 function delete_cnis_bins_and_confs {
     rm -rf ${CNI_CONF_DIR}/*
     rm -rf ${CNI_BIN_DIR}/*
+}
+
+function clear_mlnx_vfs {
+    local mlnx_interfaces=$(get_auto_net_device 0)
+
+    for interface in $mlnx_interfaces;do
+        echo 0 > /sys/class/net/$interface/device/sriov_numvfs
+    done
 }
