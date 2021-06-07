@@ -395,6 +395,8 @@ function pull_network_operator_images {
     pull_general_component_image "secondaryNetwork.multus" "$IMAGES_SRC_FILE" "$kind_netns"
 
     pull_general_component_image "secondaryNetwork.ipamPlugin" "$IMAGES_SRC_FILE" "$kind_netns"
+
+    pull_general_component_image "sriovDevicePlugin" "$IMAGES_SRC_FILE" "$kind_netns"
 }
 
 function configure_images_variable {
