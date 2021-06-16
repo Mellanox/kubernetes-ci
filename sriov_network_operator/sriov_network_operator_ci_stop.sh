@@ -7,10 +7,6 @@ export ARTIFACTS=$WORKSPACE/artifacts
 
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
-function clean_antrea_runtime {
-    rm -rf /var/run/antrea/
-}
-
 function main {
     mkdir -p $WORKSPACE
     mkdir -p $LOGDIR
@@ -26,13 +22,7 @@ function main {
 
     sudo systemctl stop vf-switcher
 
-    sudo rm -rf /etc/systemd/system/vf-switcher.service
-
-    sudo rm -rf /var/run/netns/sriov-network-operator*
-
     sudo systemctl daemon-reload
-
-    sudo rm -rf /etc/vf-switcher
 
     stop_kind_cluster "sriov-network-operator"
 

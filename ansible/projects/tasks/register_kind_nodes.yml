@@ -6,7 +6,7 @@
 
 - name: Get kind nodes
   shell:
-    cmd: kind get nodes --name {{ project }}
+    cmd: sudo kind get nodes --name {{ project }}
   register: kind_nodes_stdout
 
 - name: Register all nodes

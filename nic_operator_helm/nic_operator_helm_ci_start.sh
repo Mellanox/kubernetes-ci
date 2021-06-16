@@ -39,7 +39,7 @@ function download_and_build {
 function configure_helm_values {
     local file_name=${1:-"${ARTIFACTS}/helm-values.yaml"}
 
-    rm -f $file_name
+    rm -rf $file_name
     touch $file_name
 
     yaml_write "nfd.enabled" "true" $file_name
@@ -93,8 +93,6 @@ function deploy_operator {
     local values_file=${1:-"${ARTIFACTS}/helm-values.yaml"}
 
     pushd $WORKSPACE/mellanox-network-operator
-
-    sudo apt-get purge -y rdma-core
 
     # Install charts from 3rd-party repositories. Errors for empty reposetories won't affect installation.
     cd deployment/network-operator
@@ -151,7 +149,7 @@ function main {
     create_workspace
 
     load_core_drivers
-    rm -f /etc/cni/net.d/00*
+    sudo rm -rf /etc/cni/net.d/00*
 
     if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
         SRIOV_INTERFACE=$(get_auto_net_device)

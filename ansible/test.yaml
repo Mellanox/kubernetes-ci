@@ -1,8 +1,6 @@
 ---
 - name: Test {{ project }} project
   hosts: kind_nodes
-  become: true
-  remote_user: root
   collections:
     - community.kubernetes
   tasks:

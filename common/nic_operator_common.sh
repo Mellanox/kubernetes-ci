@@ -341,7 +341,7 @@ function pull_general_component_image {
 
     local image="${image_repo}/${image_name}:${image_tag}"
 
-    docker pull $image
+    sudo docker pull $image
 
     if [[ -n "$kind_netns" ]];then
         upload_image_to_kind "$image" "$kind_netns"
@@ -359,7 +359,7 @@ function pull_and_build_ofed_container_image {
 
     local image="${image_repo}/${image_name}-${image_version}:$(get_distro)$(get_distro_version)-amd64"
 
-    docker pull $image
+    sudo docker pull $image
 
     prebuild_mofed_contianer $image
 
@@ -378,7 +378,7 @@ function pull_nvpeer_container_image {
 
     local image="${image_repo}/${image_name}-${image_version}:amd64-$(get_distro)$(get_distro_version)"
 
-    docker pull $image
+    sudo docker pull $image
 }
 
 function pull_network_operator_images {
@@ -436,7 +436,7 @@ function configure_common {
     local nic_policy_name=${2:-"$NIC_CLUSTER_POLICY_DEFAULT_NAME"}
 
     if [[ -f "$file_name" ]];then
-        rm -f "$file_name"
+        rm -rf "$file_name"
     fi
 
     touch "$file_name"
@@ -453,10 +453,6 @@ function configure_common {
 
 function configure_ofed {
     local file_name="$1"
-
-    sudo apt-get purge -y rdma-core
-
-    modprobe -r rpcrdma
 
     configure_images_specs "ofedDriver" "$file_name"
 }
@@ -542,6 +538,6 @@ function nic_policy_create {
 function prebuild_mofed_contianer {
     local src_image="$1"
 
-    docker build -f "${SCRIPTS_DIR}/Dockerfile.ofed_rebuild" --build-arg image="$src_image"\
+    sudo docker build -f "${SCRIPTS_DIR}/Dockerfile.ofed_rebuild" --build-arg image="$src_image"\
         -t "$MODIFIED_MOFED_CONTAINER_NAME" "$SCRIPTS_DIR"
 }
