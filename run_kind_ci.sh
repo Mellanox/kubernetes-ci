@@ -11,7 +11,7 @@ export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 usage() {
   echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
   echo "                       [--num-workers <num>] [--kind-config <conf-fil>] [--kubeconfig <path>]"
-  echo "                       [--kind-node-image <image>] [-h]]"
+  echo "                       [--kind-node-image <image>] [--interfaces-type <interfaces-type>] [-h]]"
   echo ""
   echo "--project              Project to run CI: ${KIND_CI_PROJECTS[*]}"
   echo "                       Required field"
@@ -19,6 +19,7 @@ usage() {
   echo "--skip-phases          Comma separated phases, phases: ${KIND_CI_PHASES[*]}"
   echo "--num-workers          Number of worker nodes. DEFAULT: 2 worker"
   echo "--pf-per-worker        How many PFs to switch for each worker node"
+  echo "--interfaces-type      Specify the interfaces type to switch into the kind node. support: "eth", "ib", or "both". Default: eth"
   echo "--kind-config          Kind configuration file, if provided skip rendering related parameters"
   echo "                       if provided, ignores rendering related parameters (num-workers)"
   echo "--kubeconfig           KUBECONFIG for kind cluster"
@@ -118,6 +119,10 @@ parse_args() {
       fi
       export PF_PER_WORKER=$1
       ;;
+    --interfaces-type)
+      shift
+      export INTERFACES_TYPE="$2"
+      ;;
     --kind-config)
       shift
       kind_conf=$1
@@ -177,6 +182,7 @@ set_default_params() {
   export PF_PER_WORKER=${PF_PER_WORKER:-1}
   export KUBECONFIG=${KUBECONFIG:-$HOME/admin.conf}
   export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-''}"
+  export INTERFACES_TYPE=${INTERFACES_TYPE:-"eth"}
 }
 
 print_params() {
@@ -191,6 +197,7 @@ print_params() {
   echo "KIND_CONFIG     = ${KIND_CONFIG}"
   echo "KUBECONFIG      = ${KUBECONFIG}"
   echo "PULL_REQUEST    = ${PULL_REQUEST}"
+  echo "INTERFACES_TYPE = ${INTERFACES_TYPE}"
   echo ""
 }
 
