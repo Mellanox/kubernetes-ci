@@ -1,3 +1,4 @@
+{% set pf_per_worker = pfs | length / num_worker | int %}
 {%- for worker_index in range(num_worker | int) %}
 
 - netns: {{ kind_worker_nodes[worker_index] }}
