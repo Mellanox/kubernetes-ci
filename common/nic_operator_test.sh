@@ -50,8 +50,6 @@ function test_deleting_network_operator {
 function test_rdma_only {
     status=0
 
-    sudo apt-get install -y rdma-core
-
     load_core_drivers
     sleep 2
 
@@ -299,7 +297,7 @@ function test_probes {
     echo "Unloading ofed modules..."
     echo ""
     for module in $modules_list;do
-        sudo rmmod $module
+        sudo modprobe -r $module
     done
 
     wait_nic_policy_states "" "" "notReady"
@@ -372,8 +370,6 @@ function test_host_device {
 
     echo "Testing Host device..."
     echo ""
-
-    sudo apt-get install -y rdma-core
 
     load_core_drivers
     sleep 2

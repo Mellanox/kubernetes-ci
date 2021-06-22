@@ -73,25 +73,17 @@ get_arch(){
 k8s_build(){
     status=0
     echo "Download K8S"
-    rm -f /usr/local/bin/kubectl
+    sudo rm -rf /usr/local/bin/kubectl
     if [ ${KUBERNETES_VERSION} == 'latest_stable' ]; then
         export KUBERNETES_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
     fi
-    rm -rf $WORKSPACE/src/k8s.io/kubernetes
+    sudo rm -rf $WORKSPACE/src/k8s.io/kubernetes
 
     git clone https://github.com/kubernetes/kubernetes.git $WORKSPACE/src/k8s.io/kubernetes
 
     pushd $WORKSPACE/src/k8s.io/kubernetes
     git checkout ${KUBERNETES_VERSION}
     git log -p -1 > $ARTIFACTS/kubernetes.txt
-
-    make clean
-
-    let status=status+$?
-    if [ "$status" != 0 ]; then
-        echo "Failed to build K8S ${KUBERNETES_VERSION}: Failed to clean k8s dir."
-        return $status
-    fi
 
     make kubectl kubeadm kubelet
 
@@ -129,17 +121,17 @@ get_distro_version(){
 configure_firewall(){
     local os_distro=$(get_distro)
     if [[ "$os_distro" == "ubuntu" ]];then
-        systemctl stop ufw
-        systemctl disable ufw
+        sudo systemctl stop ufw
+        sudo systemctl disable ufw
     elif [[ "$os_distro" == "centos" ]]; then
-        systemctl stop firewalld
-        systemctl stop iptables
-        systemctl disable firewalld
-        systemctl disable iptables
+        sudo systemctl stop firewalld
+        sudo systemctl stop iptables
+        sudo systemctl disable firewalld
+        sudo systemctl disable iptables
     else
         echo "Warning: Unknown Distribution \"$os_distro\", stopping iptables..."
-        systemctl stop iptables
-        systemctl disable iptables
+        sudo systemctl stop iptables
+        sudo systemctl disable iptables
     fi
 }
 
@@ -150,16 +142,13 @@ k8s_run(){
 
     configure_firewall
 
-    kubeadm init --apiserver-advertise-address=$API_HOST_IP --node-name=$API_HOST --pod-network-cidr $POD_CIDER --service-cidr $SERVICE_CIDER
+    sudo kubeadm init --apiserver-advertise-address=$API_HOST_IP --node-name=$API_HOST --pod-network-cidr $POD_CIDER --service-cidr $SERVICE_CIDER
     let status=status+$?
     if [ "$status" != 0 ]; then
         echo 'Failed to run kubeadm!'
         return $status
     fi
 
-    mkdir -p $HOME/.kube
-    sudo cp -fi /etc/kubernetes/admin.conf $HOME/.kube/config
-    sudo chown $(id -u):$(id -g) $HOME/.kube/config
     sudo chmod 644 /etc/kubernetes/*.conf
 
     kubectl taint nodes $(kubectl get nodes -o name | cut -d'/' -f 2) --all node-role.kubernetes.io/master-
@@ -169,7 +158,7 @@ k8s_run(){
 network_plugins_install(){
     status=0
     echo "Download $PLUGINS_REPO"
-    rm -rf $WORKSPACE/plugins
+    sudo rm -rf $WORKSPACE/plugins
     git clone $PLUGINS_REPO $WORKSPACE/plugins
     pushd $WORKSPACE/plugins
     if test ${PLUGINS_PR}; then
@@ -201,7 +190,7 @@ network_plugins_install(){
 
 multus_install(){
     status=0
-    build_github_project "multus-cni" "docker build -t $MULTUS_CNI_HARBOR_IMAGE ."
+    build_github_project "multus-cni" "sudo docker build -t $MULTUS_CNI_HARBOR_IMAGE ."
 
     change_k8s_resource "DaemonSet" "kube-multus-ds" "spec.template.spec.containers[0].image"\
         "$MULTUS_CNI_HARBOR_IMAGE" "$WORKSPACE/multus-cni/images/multus-daemonset.yml"
@@ -308,7 +297,7 @@ function load_rdma_modules {
 function enable_rdma_mode {
     local_mode=$1
     if [[ -z "$(rdma system | grep $local_mode)" ]]; then
-        rdma system set netns "$local_mode"
+        sudo rdma system set netns "$local_mode"
         let status=status+$?
         if [ "$status" != 0 ]; then
             echo "Failed to set rdma to $local_mode mode"
@@ -318,7 +307,7 @@ function enable_rdma_mode {
 }
 
 function deploy_calico {
-    rm -rf /etc/cni/net.d/00*
+    sudo rm -rf /etc/cni/net.d/00*
 
     cp ${SCRIPTS_DIR}/deploy/calico.yaml "$ARTIFACTS"/
 
@@ -731,11 +720,16 @@ function build_github_project {
     local harbor_image_variable="${upper_case_project_name}_HARBOR_IMAGE"
 
     echo "Downloading ${!repo_variable}"
-    rm -rf "$WORKSPACE"/"$project_name"
+    sudo rm -rf "$WORKSPACE"/"$project_name"
 
     git clone "${!repo_variable}" "$WORKSPACE"/"$project_name"
 
     pushd $WORKSPACE/"$project_name"
+
+    if [[ -f Makefile ]]; then
+        sed -i 's/docker/sudo docker/' Makefile
+    fi
+
     # Check if part of Pull Request and
     if test ${!pr_variable}; then
         git fetch --tags --progress ${!repo_variable} +refs/pull/${!pr_variable}/*:refs/remotes/origin/pull-requests/${!pr_variable}/*
@@ -757,7 +751,7 @@ function build_github_project {
         eval "$image_build_command"
         let status=$status+$?
     else
-        docker pull ${!harbor_image_variable}
+        sudo docker pull ${!harbor_image_variable}
         let status=$status+$?
     fi
 
@@ -777,13 +771,13 @@ function change_image_name {
     local old_image_name="$1"
     local new_image_name="$2"
 
-    docker tag $old_image_name $new_image_name
+    sudo docker tag $old_image_name $new_image_name
     if [[ "$?" != "0" ]];then
         echo "ERROR: Failed to rename the image $old_image_name to $new_image_name"
         return 1
     fi
 
-    docker rmi $old_image_name
+    sudo docker rmi $old_image_name
 }
 
 function get_net_devices_pcis {
@@ -1087,7 +1081,7 @@ function upload_image_to_kind {
     fi
 
     echo "upload $image to kind...."
-    kind load docker-image $image --name $cluster_name
+    sudo kind load docker-image $image --name $cluster_name
     return $?
 }
 

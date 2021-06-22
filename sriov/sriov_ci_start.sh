@@ -80,7 +80,7 @@ spec:
 EOF
 
     echo "Download $SRIOV_CNI_REPO"
-    rm -rf $WORKSPACE/sriov-cni
+    sudo rm -rf $WORKSPACE/sriov-cni
     git clone ${SRIOV_CNI_REPO} $WORKSPACE/sriov-cni
     pushd $WORKSPACE/sriov-cni
     if test ${SRIOV_CNI_PR}; then
@@ -116,14 +116,9 @@ function create_vfs {
     if [ $SRIOV_INTERFACE == 'auto_detect' ]; then
         export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep MT27800|head -n1|awk '{print $1}') | awk '{print $9}')
     fi
-    echo $VFS_NUM > /sys/class/net/$SRIOV_INTERFACE/device/sriov_numvfs
-    let last_index=$VFS_NUM-1
-    for i in `seq 0 $last_index`; do
-        ip link set $SRIOV_INTERFACE vf $i mac 00:22:00:11:22:$(printf '%02x' $i)
-        pci=`readlink /sys/class/net/$SRIOV_INTERFACE/device/virtfn$i | sed 's/..\///'`
-	echo "$pci" > /sys/bus/pci/drivers/mlx5_core/unbind
-	echo "$pci" > /sys/bus/pci/drivers/mlx5_core/bind
-    done 
+
+    sudo create_vfs.sh -i "$SRIOV_INTERFACE" -v "$VFS_NUM" --set-vfs-macs
+
 }
 
 #TODO add docker image mellanox/mlnx_ofed_linux-4.4-1.0.0.0-centos7.4 presence

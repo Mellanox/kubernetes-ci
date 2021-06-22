@@ -1,8 +1,6 @@
 ---
 - name: Deploy Kind Cluster
   hosts: kind_nodes
-  become: true
-  remote_user: root
   roles:
     - kind/kind_install
     - kind/kind_cluster_create

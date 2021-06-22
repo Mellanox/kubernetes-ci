@@ -27,8 +27,7 @@ function stop_system_daemonset {
 }
 
 function stop_k8s {
-    kubeadm reset -f
-    rm -rf $HOME/.kube/config
+    sudo kubeadm reset -f
 }
 
 function stop_kind_cluster {
@@ -46,17 +45,17 @@ function asure_all_stoped {
 }
 
 function delete_all_docker_container {
-    docker stop $(docker ps -q)
-    docker rm $(docker ps -a -q)
+    sudo docker stop $(sudo docker ps -q)
+    sudo docker rm $(sudo docker ps -a -q)
 }
 
 function delete_all_docker_images {
-    docker rmi $(docker images -q)
+    sudo docker rmi $(sudo docker images -q)
 }
 
 function delete_chache_files {
     #delete network cache
-    rm -rf /var/lib/cni/networks
+    sudo rm -rf /var/lib/cni/networks
 
     [ -d /var/lib/cni/sriov ] && rm -rf /var/lib/cni/sriov/*
 }
@@ -76,7 +75,7 @@ function clean_tmp_workspaces {
         echo "$logs_to_clean"
         for log in $logs_to_clean; do
             echo "Removing /tmp/$log dir"
-            rm -rf /tmp/"$log"
+            sudo rm -rf /tmp/"$log"
         done
     fi
 }
@@ -101,18 +100,18 @@ function reset_vfs_guids {
     load_core_drivers
     sleep 10
 
-    ifconfig ib0 up
+    sudo ip l set ib0 up
     sleep 5
-    ifconfig ib1 up
+    sudo ip l set ib1 up
     sleep 5
-    systemctl restart opensm
+    sudo systemctl restart opensm
 
     return 0
 }
 
 function unload_module {
     local module=$1
-    modprobe -r $module
+    sudo modprobe -r $module
     if [[ "$?" != "0" ]];then
        echo "ERROR: Failed to unload $module module!"
        return 1
@@ -150,11 +149,11 @@ function collect_pods_logs {
     if [[ -f "${LOGDIR}/start-time.log" ]];then
 
         if [[ -d "$pods_log_dir" ]];then
-            rm -rf $pods_log_dir
+            sudo rm -rf $pods_log_dir
         fi
 
         if [[ -d "$pods_info_dir" ]];then
-            rm -rf $pods_info_dir
+            sudo rm -rf $pods_info_dir
         fi
 
         mkdir -p $pods_log_dir
@@ -183,7 +182,7 @@ function collect_nodes_info {
     if [[ -f "${LOGDIR}/start-time.log" ]];then
 
         if [[ -d "$nodes_info_dir" ]];then
-            rm -rf $nodes_info_dir
+            sudo rm -rf $nodes_info_dir
         fi
 
         mkdir -p $nodes_info_dir
@@ -384,14 +383,14 @@ function delete_nic_operator {
 }
 
 function delete_cnis_bins_and_confs {
-    rm -rf ${CNI_CONF_DIR}/*
-    rm -rf ${CNI_BIN_DIR}/*
+    sudo rm -rf ${CNI_CONF_DIR}/*
+    sudo rm -rf ${CNI_BIN_DIR}/*
 }
 
 function clear_mlnx_vfs {
     local mlnx_interfaces=$(get_auto_net_device 0)
 
     for interface in $mlnx_interfaces;do
-        echo 0 > /sys/class/net/$interface/device/sriov_numvfs
+        sudo create_vfs.sh -i "$interface" -v "0"
     done
 }

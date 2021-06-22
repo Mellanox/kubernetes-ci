@@ -23,16 +23,6 @@ function main {
 
     undeploy_gpu_operator
 
-    sudo systemctl stop vf-switcher
-
-    sudo rm -rf /etc/systemd/system/vf-switcher.service
-
-    sudo rm -rf /var/run/netns/sriov-network-operator*
-
-    sudo systemctl daemon-reload
-
-    sudo rm -rf /etc/vf-switcher
-
     stop_kind_cluster "nic-operator-kind"
 
     general_cleaning

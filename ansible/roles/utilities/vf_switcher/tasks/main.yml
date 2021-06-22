@@ -26,29 +26,17 @@
     src: "{{ deploy_vf_switcher_config }}"
     dest: "{{ artifacts }}/vf-switcher.yaml"
 
-- name: Create /etc/vf-switcher directory
-  file:
-    path: "/etc/vf-switcher"
-    state: directory
+# Note(abdallahyas): The /etc/vf-switcher directory must be present
+# on the machine and is owned by the user run by the ansible scripts.
+# This is done because the vf-switcher handling should be done by admins
+# only, to not expose the scripts for non admin users.
 
 - name: Copy vf-switcher configuration to /etc/vf-switcher
   copy:
     src: "{{ deploy_vf_switcher_config }}"
     dest: "/etc/vf-switcher/vf-switcher.yaml"
 
-- name: Copy vf-switcher script to /usr/loca/bin
-  copy:
-    src: "{{ playbook_dir }}/../deploy/vf-netns-switcher.sh"
-    dest: "/usr/local/bin/vf-netns-switcher.sh"
-    mode: +x
+- name: Deploy Kind cluster {{ project }}
+  command:
+    cmd: sudo systemctl restart vf-switcher
 
-- name: Copy vf-switcher-service file to systemd
-  copy:
-    src: "{{ playbook_dir }}/../deploy/vf-switcher.service"
-    dest: "/etc/systemd/system/vf-switcher.service"
-
-- name: Start vf-switcher service
-  systemd:
-    state: restarted
-    name: vf-switcher
-    daemon_reload: yes

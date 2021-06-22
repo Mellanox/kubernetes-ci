@@ -1,7 +1,5 @@
 ---
 - name: Prepare CI cluster environment
   hosts: kind_nodes
-  become: true
-  remote_user: root
   roles:
     - prepare-ci-environment
