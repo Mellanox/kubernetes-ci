@@ -3,6 +3,7 @@
   set_fact:
     mlnx_interfaces: []
     mlnx_pfs: []
+    infiniband_pfs: []
     pfs: []
 
 - name: Get Mellanox interfaces
@@ -30,6 +31,41 @@
         index_var: loop_index
       when:
         - item.stat.exists
+
+- name: Get Infniband interfaces
+  when:
+    - interfaces_type == "eth" or interfaces_type == "ib"
+  block:
+    - name: Read pkeys
+      stat:
+        path: "/sys/class/net/{{ item }}/pkey"
+      loop: "{{ mlnx_pfs }}"
+      register: interfaces_pkey
+
+    - name: Get Mellanox Infiniband PFs
+      set_fact:
+        infiniband_pfs: "{{ infiniband_pfs + [ mlnx_pfs[loop_index] ] }}"
+      loop: "{{ interfaces_pkey.results }}"
+      loop_control:
+        index_var: loop_index
+      when:
+        - item.stat.exists
+
+- name: Filter out Infniband interfaces
+  when:
+    - interfaces_type == "eth"
+  block:
+    - name: Filter out Infiniband pfs
+      set_fact:
+        mlnx_pfs: "{{ mlnx_pfs | difference(infiniband_pfs) }}"
+
+- name: Filter out Ethernet Mellanox pfs
+  when:
+    - interfaces_type == "ib"
+  block:
+    - name: Filter out Ethernet pfs
+      set_fact:
+        mlnx_pfs: "{{ infiniband_pfs }}"
 
 - name: Filter Mellanox pfs
   block:
