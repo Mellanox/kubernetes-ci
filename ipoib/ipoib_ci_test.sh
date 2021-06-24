@@ -19,47 +19,7 @@ source ./common/common_functions.sh
 
 test_pod_image='harbor.mellanox.com/cloud-orchestration/rping-test'
 
-function pod_create_server {
-    POD_NAME=$1
-    local resource=$2
-
-    if [[ -z "$resource" ]]; then
-        resource="rdma/hca_shared_devices_a"
-    fi
-    
-    cd $ARTIFACTS
-    curl https://raw.githubusercontent.com/Mellanox/k8s-rdma-shared-dev-plugin/${K8S_RDMA_SHARED_DEV_PLUGIN}/example/test-hca-pod.yaml -o $ARTIFACTS/test-hca-pod.yaml
-    patch <<EOF
---- test-hca-pod.yaml	2020-03-16 19:43:32.002735348 +0200
-+++ test-hca-pod.yaml	2020-03-16 19:37:05.122828220 +0200
-@@ -2,6 +2,8 @@ apiVersion: v1
- kind: Pod
- metadata:
-   name: mofed-test-pod
-+  annotations:
-+    k8s.v1.cni.cncf.io/networks: ipoib-network
- spec:
-   restartPolicy: OnFailure
-   containers:
-@@ -18,4 +20,5 @@ spec:
-     - -c
-     - |
-       ls -l /dev/infiniband /sys/class/net
-+      ib_write_bw -d mlx5_0
-       sleep 1000000
-EOF
-
-    mv $ARTIFACTS/test-hca-pod.yaml $ARTIFACTS/${POD_NAME}.yaml
-    sed -i "s/name: mofed-test-pod/name: ${POD_NAME}/g" $ARTIFACTS/${POD_NAME}.yaml
-    sed -i "s;image: .*;image: $test_pod_image;g" $ARTIFACTS/${POD_NAME}.yaml
-    yaml_write spec.containers[0].resources.limits "" $ARTIFACTS/${POD_NAME}.yaml
-    yaml_write spec.containers[0].resources.limits.${resource} 1 $ARTIFACTS/${POD_NAME}.yaml
-    
-    return $?
-}
-
-
-function pod_create_client {
+function pod_create {
     POD_NAME=$1
     local resource=$2
 
@@ -67,30 +27,13 @@ function pod_create_client {
         resource="rdma/hca_shared_devices_a"
     fi
 
-    cd $ARTIFACTS
-    curl https://raw.githubusercontent.com/Mellanox/k8s-rdma-shared-dev-plugin/${K8S_RDMA_SHARED_DEV_PLUGIN}/example/test-hca-pod.yaml -o $ARTIFACTS/test-hca-pod.yaml
-    patch <<EOF
---- test-hca-pod.yaml	2020-03-16 19:43:32.002735348 +0200
-+++ test-hca-pod.yaml	2020-03-16 19:37:05.122828220 +0200
-@@ -2,6 +2,8 @@ apiVersion: v1
- kind: Pod
- metadata:
-   name: mofed-test-pod
-+  annotations:
-+    k8s.v1.cni.cncf.io/networks: ipoib-network
- spec:
-   restartPolicy: OnFailure
-   containers:
-EOF
-
-    mv $ARTIFACTS/test-hca-pod.yaml $ARTIFACTS/${POD_NAME}.yaml
-    sed -i "s/name: mofed-test-pod/name: ${POD_NAME}/g" $ARTIFACTS/${POD_NAME}.yaml
-    sed -i "s;image: .*;image: $test_pod_image;g" $ARTIFACTS/${POD_NAME}.yaml
+    render_test_pods_common "$POD_NAME" "$ARTIFACTS/${POD_NAME}.yaml" "$test_pod_image" "ipoib-network"
+ 
     yaml_write spec.containers[0].resources.limits "" $ARTIFACTS/${POD_NAME}.yaml
     yaml_write spec.containers[0].resources.limits.${resource} 1 $ARTIFACTS/${POD_NAME}.yaml
+
     return $?
 }
-
 
 function pod_start {
     /usr/local/bin/kubectl create -f $ARTIFACTS/${POD_NAME}.yaml
@@ -154,6 +97,10 @@ function test_pods_connectivity {
     /usr/local/bin/kubectl exec -i ${POD_NAME_2} ls /dev/infiniband/
     let status=status+$?
 
+    screen -S ib_write_bw_server -d -m bash -x -c "kubectl exec -t ${POD_NAME_1} -- ib_write_bw -d mlx5_0"
+
+    sleep 2
+
     /usr/local/bin/kubectl exec ${POD_NAME_2} -- bash -c "ib_write_bw -d mlx5_0 -D 10 ${ip_1}"
     let status=status+$?
 
@@ -174,7 +121,7 @@ function test_pods {
     local local_status=0
 
     echo "Creating pod $POD_NAME_1 for ib_write_bw server using $RESOURCE"
-    pod_create_server $POD_NAME_1 "$RESOURCE"
+    pod_create $POD_NAME_1 "$RESOURCE"
     let local_status=local_status+$?
     if [ $local_status -ne 0 ]; then
         echo "Failed to get $POD_NAME_1 yaml!"
@@ -190,7 +137,7 @@ function test_pods {
     
     
     echo "Creating pod $POD_NAME_2 as client using $RESOURCE"
-    pod_create_client "$POD_NAME_2" "$RESOURCE"
+    pod_create "$POD_NAME_2" "$RESOURCE"
     let local_status=local_status+$?
     if [ $local_status -ne 0 ]; then
         echo "Failed to get $POD_NAME_2 yaml !"
