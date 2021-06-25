@@ -43,6 +43,20 @@ function configure_helm_values {
     touch $file_name
 
     yaml_write "nfd.enabled" "true" $file_name
+
+    # Note(abdallahyas): Add a value to the NFD worker tolerations so that they would
+    # overwrite the default tolerations of deploying the NFD in the master node. This is
+    # done as a workaround to not deploy the MOFED container on master node in case
+    # of kind cluster, which may result in conflicts between the master and worker node
+    # MOFED containers.
+    # The value of the tolerations ware determined based on the default value of the
+    # tolerations found at the github repo not including the master label toleration.
+
+    yaml_write "node-feature-discovery.worker.tolerations[0].key" "nvidia.com/gpu" "$file_name"
+    yaml_write "node-feature-discovery.worker.tolerations[0].operator" "Equal" "$file_name"
+    yaml_write "node-feature-discovery.worker.tolerations[0].value" "present" "$file_name"
+    yaml_write "node-feature-discovery.worker.tolerations[0].effect" "NoSchedule" "$file_name"
+
     yaml_write "operator.tag" "latest" $file_name
     yq d -i $file_name "operator.nodeSelector"
     yaml_write "deployCR" "true" $file_name
