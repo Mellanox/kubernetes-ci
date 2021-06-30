@@ -17,6 +17,7 @@ export nic_operator_dir=$WORKSPACE/mellanox-network-operator/
 export NIC_OPERATOR_NAMESPACE_FILE=${NIC_OPERATOR_NAMESPACE_FILE:-"$nic_operator_dir/deploy/operator-ns.yaml"}
 export NIC_OPERATOR_RESOURCES_NAMESPACE_FILE=${NIC_OPERATOR_RESOURCES_NAMESPACE_FILE:-"$nic_operator_dir/deploy/operator-resources-ns.yaml"}
 export IMAGES_SRC_FILE="$nic_operator_dir/deployment/network-operator/values.yaml"
+export SRIOV_IMAGES_SRC_FILE="$nic_operator_dir/deployment/network-operator/charts/sriov-network-operator/values.yaml"
 
 export NIC_OPERATOR_REPO=${NIC_OPERATOR_REPO:-https://github.com/Mellanox/network-operator}
 export NIC_OPERATOR_BRANCH=${NIC_OPERATOR_BRANCH:-''}
@@ -268,6 +269,11 @@ function build_nic_operator_image {
 }
 
 function get_nic_operator_namespace {
+    if [[ "$project" == "nic-operator-helm" ]];then
+        echo "sriov-network-operator"
+        return 0
+    fi
+
     if [[ ! -f "$NIC_OPERATOR_NAMESPACE_FILE" ]];then
         echo "nvidia-network-operator"
         return 0
@@ -377,7 +383,10 @@ function pull_and_build_ofed_container_image {
     prebuild_mofed_contianer $image
 
     if [[ -n "$kind_netns" ]];then
-        upload_image_to_kind "$MODIFIED_MOFED_CONTAINER_NAME" "$kind_netns"
+        local kind_image_name="${OFED_DRIVER_REPO}/${OFED_DRIVER_IMAGE}-${OFED_DRIVER_VERSION}:$(get_distro)$(get_kind_distro_version)-amd64"
+        sudo docker tag $MODIFIED_MOFED_CONTAINER_NAME $kind_image_name
+        sudo docker rmi $MODIFIED_MOFED_CONTAINER_NAME
+        upload_image_to_kind "$kind_image_name" "$kind_netns"
     fi
 }
 
@@ -392,6 +401,20 @@ function pull_nvpeer_container_image {
     local image="${image_repo}/${image_name}-${image_version}:amd64-$(get_distro)$(get_distro_version)"
 
     sudo docker pull $image
+}
+
+function pull_sriov_operator_image {
+    local key="$1"
+    local file="$2"
+    local kind_netns="$3"
+
+    local image=$(yaml_read "$key" "$file")
+
+    sudo docker pull $image
+
+    if [[ -n "$kind_netns" ]];then
+        upload_image_to_kind $image "$kind_netns"
+    fi
 }
 
 function pull_network_operator_images {
@@ -410,6 +433,10 @@ function pull_network_operator_images {
     pull_general_component_image "secondaryNetwork.ipamPlugin" "$IMAGES_SRC_FILE" "$kind_netns"
 
     pull_general_component_image "sriovDevicePlugin" "$IMAGES_SRC_FILE" "$kind_netns"
+
+    pull_sriov_operator_image "images.operator" "$SRIOV_IMAGES_SRC_FILE" "$kind_netns"
+
+    pull_sriov_operator_image "images.sriovConfigDaemon" "$SRIOV_IMAGES_SRC_FILE" "$kind_netns"
 }
 
 function configure_images_variable {

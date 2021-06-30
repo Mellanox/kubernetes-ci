@@ -13,11 +13,21 @@ export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
+export SRIOV_NETWORK_OPERATOR_REPO=${SRIOV_NETWORK_OPERATOR_REPO:-https://github.com/k8snetworkplumbingwg/sriov-network-operator.git}
+export SRIOV_NETWORK_OPERATOR_BRANCH=${SRIOV_NETWORK_OPERATOR_BRANCH:-'master'}
+export SRIOV_NETWORK_OPERATOR_PR=${SRIOV_NETWORK_OPERATOR_PR:-''}
+
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
+
+sriov_operator_project_file=$WORKSPACE/sriov-network-operator
+
+export project="nic-operator-helm"
 
 source ./common/common_functions.sh
 source ./common/clean_common.sh
 source ./common/nic_operator_common.sh
+source ./common/nic_operator_test.sh
+source ./common/sriov_operator_test.sh
 
 function exit_code {
     echo "All logs $LOGDIR"
@@ -26,22 +36,42 @@ function exit_code {
     exit $status
 }
 
-function test_ofed_and_rdma {
-    status=0
+function test_sriov_operator_rping {
+    local sriov_operator_namespace=$(get_nic_operator_namespace)
 
-    test_ofed_drivers
-    let status=status+$?
+    local policy_name="example-sriov-policy"
+    local network_name="example-sriov-network"
+    local resource_name="mlnxnics"
+
+    create_sriov_node_policy "$policy_name" "$sriov_operator_namespace" "$resource_name"
+    let status=$status+$?
     if [ "$status" != 0 ]; then
-        echo "Error: Ofed modules failed!"
+        echo "Error: Failed to create the sriovnetworknodepolicy!!"
         return $status
     fi
 
-    test_rdma_plugin "" "example-macvlan" "rdma/rdma_shared_devices_a"
-    let status=status+$?
+    create_sriov_network "$network_name" "$sriov_operator_namespace" "$resource_name"
+    let status=$status+$?
     if [ "$status" != 0 ]; then
-        echo "Error: RDMA device plugin testing Failed!"
+        echo "Error: Failed to create the sriovnetwork!!"
         return $status
     fi
+
+    test_rdma_plugin "" "$network_name" "nvidia.com/${resource_name}"
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Failed to test rping between two sriov pods!!"
+        return $status
+    fi
+
+    delete_sriov_node_policy "$policy_name" "$sriov_operator_namespace"
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Failed to delete the sriovnetworknodepolicy!!"
+        return $status
+    fi
+
+    return 0
 }
 
 function main {
@@ -59,10 +89,17 @@ function main {
     configure_macvlan_custom_resource "$macvlan_sample_file"
     kubectl create -f "$macvlan_sample_file"
 
-    test_ofed_and_rdma
-    let status=status+$?
+    test_ofed_drivers
+    let status=$status+$?
     if [ "$status" != 0 ]; then
-        echo "Error: Testing deploying OFED and RDMA shared device plugin failed!!"
+        echo "Error: Testing deploying OFED failed!!"
+        exit_code $status
+    fi
+
+    test_sriov_operator_rping
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Testing SRIOV network operator E2E tests failed!!"
         exit_code $status
     fi
 
@@ -74,5 +111,5 @@ function main {
 }
 
 main
-exit_code $status
+exit_code $?
 

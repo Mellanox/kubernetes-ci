@@ -17,7 +17,7 @@ export KUBECONFIG=${KUBECONFIG:-"/root/.kube/config"}
 
 export KERNEL_VERSION=${KERNEL_VERSION:-$(uname -r)}
 export OS_DISTRO=${OS_DISTRO:-ubuntu}
-export OS_VERSION=${OS_VERSION:-20.04}
+export OS_VERSION=${OS_VERSION:-$(get_kind_distro_version)}
 
 export KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-'harbor.mellanox.com/cloud-orchestration/kind-node:latest'}
 
