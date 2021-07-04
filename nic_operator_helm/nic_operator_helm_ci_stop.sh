@@ -35,6 +35,8 @@ function main {
     delete_nic_operator_via_helm
 
     general_cleaning
+
+    stop_kind_cluster "${project}"
  
     load_core_drivers                                                                                                                                                                                                                            
     cp /tmp/kube*.log $LOGDIR
