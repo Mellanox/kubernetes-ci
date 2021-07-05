@@ -51,6 +51,10 @@ function main {
         export SRIOV_INTERFACE=$(ls -l /sys/class/net/ | grep $(lspci |grep Mellanox | grep -Ev 'MT27500|MT27520' | head -n1 | awk '{print $1}') | awk '{print $9}')
     fi
 
+    if [[ "${RDMA_RESOURCE}" == "auto_detect" ]];then
+        export RDMA_RESOURCE=$(get_interface_rdma_resource_name)
+    fi
+
     set_network_operator_images_variables
 
     test_rdma_only

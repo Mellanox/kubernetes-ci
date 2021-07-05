@@ -40,6 +40,7 @@ export CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin/}
 export CNI_CONF_DIR=${CNI_CONF_DIR:-/etc/cni/net.d/}
 
 export SRIOV_INTERFACE=${SRIOV_INTERFACE:-auto_detect}
+export RDMA_RESOURCE=${RDMA_RESOURCE:-"auto_detect"}
 
 # generate random network
 N=$((1 + RANDOM % 128))
@@ -970,12 +971,13 @@ function test_gpu_write_bandwidth {
     echo "$pod_name1 has ip ${ip_1}"
 
     if ! rdma_resource=$(kubectl exec -t cuda-test-pod-1 -- ls /sys/class/net/net1/device/infiniband); then
-        rdma_resource=$(kubectl exec -t cuda-test-pod-1 -- ls /sys/class/infiniband | head -n 1 | awk '{print $1}')
+        rdma_resource=${RDMA_RESOURCE}
     fi
 
-    screen -S gpu_server -d -m bash -x -c "kubectl exec -t $pod_name1 -- ib_write_bw -d $rdma_resource -F -R -q 2 --use_cuda=0"
+
+    screen -S gpu_server -d -m bash -x -c "kubectl exec -t $pod_name1 -- ib_write_bw -d "${rdma_resource}" -F -R -q 2 --use_cuda=0"
     sleep 20
-    kubectl exec -t $pod_name1 -- ib_write_bw -d "$rdma_resource" -F -R -q 2 --use_cuda=0 "$ip_1"
+    kubectl exec -t $pod_name1 -- ib_write_bw -d "${rdma_resource}" -F -R -q 2 --use_cuda=0 "$ip_1"
     return $?
 }
 
@@ -1138,3 +1140,21 @@ function get_pf_device_id {
     fi
 }
 
+function get_interface_rdma_resource_name {
+    local interface=${1:-"$SRIOV_INTERFACE"}
+
+    if [[ -z "${interface}" ]];then
+        interface=$(get_auto_net_device)
+    fi
+
+    if [[ ! -e /sys/class/net/${interface} ]];then
+        if [[ -n "${project}" ]];then
+            sudo docker exec -t ${project}-worker ls /sys/class/net/${interface}/device/infiniband
+            return 0
+        fi
+
+        return 1
+    fi
+
+    ls /sys/class/net/${interface}/device/infiniband
+}
