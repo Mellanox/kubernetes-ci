@@ -748,9 +748,7 @@ function build_github_project {
 
     pushd $WORKSPACE/"$project_name"
 
-    if [[ -f Makefile ]]; then
-        sed -i 's/docker/sudo docker/' Makefile
-    fi
+    local sed_match_reg='s/(@| |^|=)docker($| )/\1sudo docker\2/'
 
     # Check if part of Pull Request and
     if test ${!pr_variable}; then
@@ -761,6 +759,11 @@ function build_github_project {
             echo "ERROR: Failed to checkout the $project_name pull request number ${!pr_variable}!"
             return "$status"
         fi
+        
+        if [[ -f Makefile ]]; then
+            sed -ri "${sed_match_reg}" Makefile
+        fi
+
         eval "$image_build_command"
         let status=$status+$?
     elif test ${!branch_variable}; then
@@ -770,6 +773,11 @@ function build_github_project {
             echo "ERROR: Failed to checkout the $project_name branch ${!branch_variable}!"
             return "$status"
         fi
+
+        if [[ -f Makefile ]]; then
+            sed -ri "${sed_match_reg}" Makefile
+        fi
+
         eval "$image_build_command"
         let status=$status+$?
     else
