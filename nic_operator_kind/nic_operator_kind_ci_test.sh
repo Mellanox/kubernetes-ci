@@ -49,6 +49,8 @@ function main {
 
     load_core_drivers
 
+    sudo systemctl stop opensm
+
     export SRIOV_INTERFACE=$(read_netdev_from_vf_switcher_confs)
 
     set_network_operator_images_variables
@@ -73,6 +75,20 @@ function main {
     let status=$status+$?
     if [[ "$status" != "0" ]]; then
         echo "Error: Test deploying OFED and host device failed!!"
+        exit_code $status
+    fi
+
+    test_host_device_ib
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Test deploying the infiniband host device failed!!"
+        exit_code $status
+    fi
+
+    test_ofed_and_host_device_ib
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Test deploying OFED and infiniband host device failed!!"
         exit_code $status
     fi
 

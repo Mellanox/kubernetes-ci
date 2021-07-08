@@ -26,6 +26,8 @@ function main {
     stop_kind_cluster "nic-operator-kind"
 
     general_cleaning
+
+    sudo systemctl stop opensm
  
     load_core_drivers                                                                                                                                                                                                                            
     cp /tmp/kube*.log $LOGDIR

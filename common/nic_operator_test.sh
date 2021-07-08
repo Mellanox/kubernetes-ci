@@ -412,6 +412,65 @@ function test_host_device {
     return 0
 }
 
+function test_host_device_ib {
+    local resource_name_prefix="nvidia.com"
+    local resource_name="hostdev_ib"
+    local network_name="example-hostdevice-network-ib"
+
+    status=0
+
+    echo "Testing infiniband Host device..."
+    echo ""
+
+    load_core_drivers
+    sleep 2
+
+    load_rdma_modules
+    sleep 2
+
+    sudo modprobe ib_ipoib
+
+    local network_file="${ARTIFACTS}/example-ib-hostdevice-network.yaml"
+
+    configure_hostdevice_network_custom_resource "$resource_name" "$network_file" "$network_name"
+    kubectl create -f "$network_file"
+
+    local sample_file="$ARTIFACTS"/ib-host-device-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_host_device "$sample_file" "$resource_name_prefix" "$resource_name" "infiniband"
+
+    nic_policy_create "$sample_file"
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    sudo systemctl restart opensm
+
+    sleep 10
+
+    test_rdma_plugin "" "$network_name" "${resource_name_prefix}/${resource_name}"
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: host device plugin testing Failed!"
+        return $status
+    fi
+
+    sudo systemctl stop opensm
+
+    delete_nic_cluster_policies
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+    return 0
+}
+
 function test_ofed_and_host_device {
     local resource_name_prefix="nvidia.com"
     local resource_name="hostdev"
@@ -454,6 +513,67 @@ function test_ofed_and_host_device {
         echo "Error: host device plugin testing Failed!"
         return $status
     fi
+
+    delete_nic_cluster_policies
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Couldn't delete $sample_file!"
+        return $status
+    fi
+    return 0
+}
+
+function test_ofed_and_host_device_ib {
+    local resource_name_prefix="nvidia.com"
+    local resource_name="hostdev_ib"
+    local network_name="example-hostdevice-network-ib"
+
+    status=0
+
+    echo "Testing OFED and infiniband Host device..."
+    echo ""
+
+    local network_file="${ARTIFACTS}/example-ib-hostdevice-network.yaml"
+
+    sudo modprobe ib_ipoib
+
+    configure_hostdevice_network_custom_resource "$resource_name" "$network_file" "$network_name"
+    kubectl create -f "$network_file"
+
+    local sample_file="$ARTIFACTS"/ofed-and-ib-host-device-nic-cluster-policy.yaml
+
+    configure_common "$sample_file"
+    configure_ofed "$sample_file"
+    configure_host_device "$sample_file" "$resource_name_prefix" "$resource_name" "infiniband"
+
+    nic_policy_create "$sample_file"
+    let status=$status+$?
+    if [[ "$status" != 0 ]]; then
+        echo "Error: error in creating the example nic_policy."
+        return $status
+    fi
+
+    sleep 10
+
+    sudo systemctl restart opensm
+
+    sleep 10
+
+    test_ofed_drivers
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Ofed modules failed!"
+        return $status
+    fi
+
+    test_rdma_plugin "" "$network_name" "${resource_name_prefix}/${resource_name}"
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: host device plugin testing Failed!"
+        return $status
+    fi
+
+    sudo systemctl stop opensm
 
     delete_nic_cluster_policies
     let status=$status+$?

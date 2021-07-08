@@ -1,0 +1,2 @@
+export INTERFACES_TYPE=${INTERFACES_TYPE:-'both'}
+

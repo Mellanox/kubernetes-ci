@@ -78,6 +78,8 @@ function main {
 
     cp ./deploy/macvlan-net.yaml "$ARTIFACTS"/
 
+    sudo modprobe ib_ipoib
+
     deploy_kind_cluster "$project" "1" "2"
     if [ $? -ne 0 ]; then
         echo "Failed to deploy k8s"

@@ -108,14 +108,17 @@ function configure_macvlan_custom_resource {
 function configure_hostdevice_network_custom_resource {
     local hostdevice_resource_name="$1"
     local file_name="$2"
+    local network_name="${3:-$HOSTDEVICE_NETWORK_DEFAULT_NAME}"
 
-    if [[ ! -f "$file_name" ]];then
-        touch "$file_name"
+    if [[ -f "$file_name" ]];then
+        rm -f "$file_name"
     fi
+
+    touch "$file_name"
 
     yaml_write "apiVersion" "mellanox.com/v1alpha1" "$file_name"
     yaml_write "kind" "HostDeviceNetwork" "$file_name"
-    yaml_write "metadata.name" "$HOSTDEVICE_NETWORK_DEFAULT_NAME" "$file_name"
+    yaml_write "metadata.name" "$network_name" "$file_name"
 
     yaml_write "spec.networkNamespace" "default" "$file_name"
     yaml_write "spec.resourceName" "$hostdevice_resource_name" "$file_name"
@@ -524,14 +527,13 @@ function configure_host_device {
     local file_name="$1"
     local resource_prefix=${2:-'nvidia.com'}
     local resource_name=${3:-'hostdev'}
+    local link_type=${4:-'ether'}
 
     if [[ -n "$project" ]];then
         local netns="${project}-worker"
     else
         local netns=""
     fi
-
-    local pf_device_id=$(get_pf_device_id "$netns")
 
     configure_images_specs "sriovDevicePlugin" "$file_name"
 
@@ -544,7 +546,7 @@ function configure_host_device {
       \"selectors\": {
         \"isRdma\": true,
         \"drivers\": [\"mlx5_core\"],
-        \"devices\": [\"$pf_device_id\"]
+        \"linkTypes\": [\"$link_type\"]
       }
     }
   ]
