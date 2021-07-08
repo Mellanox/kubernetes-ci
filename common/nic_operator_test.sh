@@ -430,6 +430,9 @@ function test_host_device_ib {
 
     sudo modprobe ib_ipoib
 
+    # Give some time for the vf-switcher to switch the IB interface inside the kind cluster
+    sleep 4
+
     local network_file="${ARTIFACTS}/example-ib-hostdevice-network.yaml"
 
     configure_hostdevice_network_custom_resource "$resource_name" "$network_file" "$network_name"
@@ -536,6 +539,8 @@ function test_ofed_and_host_device_ib {
     local network_file="${ARTIFACTS}/example-ib-hostdevice-network.yaml"
 
     sudo modprobe ib_ipoib
+
+    sleep 4
 
     configure_hostdevice_network_custom_resource "$resource_name" "$network_file" "$network_name"
     kubectl create -f "$network_file"
