@@ -64,6 +64,7 @@ function configure_helm_values {
     yaml_write "node-feature-discovery.worker.tolerations[0].effect" "NoSchedule" "$file_name"
 
     yaml_write "sriovNetworkOperator.enabled" "true" $file_name
+    yaml_write "operator.repository" "mellanox" $file_name
     yaml_write "operator.tag" "latest" $file_name
     yq d -i $file_name "operator.nodeSelector"
     yaml_write "deployCR" "true" $file_name
