@@ -1119,6 +1119,11 @@ function upload_image_to_kind {
 function read_netdev_from_vf_switcher_confs {
     local netns="$1"
     local vf_switcher_conf=${2:-'/etc/vf-switcher/vf-switcher.yaml'}
+    local num_of_pfs=${3:-'0'}
+
+    local pfs=""
+
+    local status=0
 
     if [[ -z "$netns" ]];then
         yaml_read '[0].pfs[0]' $vf_switcher_conf
@@ -1130,8 +1135,18 @@ function read_netdev_from_vf_switcher_confs {
 
     for index in $(seq 0 ${netns_num}); do
         if [[ "$(yaml_read [${index}].netns $vf_switcher_conf)" == "$netns" ]];then
-            yaml_read [${index}].pfs[0] $vf_switcher_conf
-            return $?
+            if [[ "$num_of_pfs" -lt "0" ]];then
+                num_of_pfs="$(yq r $vf_switcher_conf [${index}].pfs -l)"
+                ((num_of_pfs--))
+            fi
+
+            for pf_index in $(seq 0 $num_of_pfs);do
+                pfs+="$(yaml_read [${index}].pfs[$pf_index] $vf_switcher_conf) "
+                let status=$status+$?
+            done
+
+            echo ${pfs}
+            return $status
         fi
     done
 }
@@ -1145,6 +1160,16 @@ function get_pf_device_id {
     else
         local pf=$(read_netdev_from_vf_switcher_confs "$netns")
         sudo docker exec $netns cat /sys/class/net/$pf/device/device | cut -d x -f 2
+    fi
+}
+
+function get_pfs_net_name {
+    local netns="$1"
+
+    if [[ -z "$netns" ]];then
+        get_auto_net_device 0
+    else
+        read_netdev_from_vf_switcher_confs "$netns" "" "-1"
     fi
 }
 

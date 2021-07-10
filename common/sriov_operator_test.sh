@@ -9,6 +9,7 @@ export ARTIFACTS=$WORKSPACE/artifacts
 export TIMEOUT=${TIMEOUT:-600}
 export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
+export default_vf_num="6"
 
 function test_sriov_operator_e2e {
     pushd $WORKSPACE/sriov-network-operator
@@ -31,6 +32,41 @@ function test_sriov_operator_e2e {
     fi
 
     popd
+}
+
+set_sriov_operator_vfs_macs(){
+    local vfs_num="${1:-$default_vf_num}"
+    local interfaces=$@
+
+    local last_index=0
+
+    if [[ -z "${project}" ]];then
+        echo "ERROR: Missing the project env variable!"
+        return 1
+    fi
+
+    if [[ -z "$interfaces" ]];then
+        echo "ERROR: PFs not provided for setting the macs!"
+        return 1
+    fi
+
+    local old_IFS=$IFS
+    IFS=' '
+
+    local mac_index=0
+
+    for interface in $interfaces;do
+        for i in $(seq -s " " 0 $((vfs_num-1))); do
+            sudo docker exec -t ${project}-worker ip link set $interface vf $i mac 00:22:00:11:22:$(printf '%02x' ${mac_index})
+            pci=$(sudo docker exec -t ${project}-worker readlink /sys/class/net/$interface/device/virtfn$i | sed 's/..\///')
+            pci=${pci//$'\r'/}
+            sudo docker exec -t ${project}-worker bash -c "echo $pci > /sys/bus/pci/drivers/mlx5_core/unbind"
+            sudo docker exec -t ${project}-worker bash -c "echo $pci > /sys/bus/pci/drivers/mlx5_core/bind"
+            ((mac_index++))
+        done
+    done
+
+    IFS=$pld_IFS
 }
 
 create_sriov_node_policy(){
@@ -61,6 +97,9 @@ create_sriov_node_policy(){
         echo "Error: sriovnetworknodestate did not become Succeeded in $TIMEOUT!"
         return $status
     fi
+
+    set_sriov_operator_vfs_macs "" "$(get_pfs_net_name ${project}-worker)"
+
     return 0
 }
 
@@ -110,7 +149,7 @@ render_sriov_node_policy(){
     local policy_name="${1:-example-sriov-policy}"
     local file="${2:-${ARTIFACTS}/${policy_name}.yaml}"
     local policy_namespace=${3:-'sriov-network-operator'}
-    local num_vfs=${4:-'6'}
+    local num_vfs=${4:-"${default_vf_num}"}
     local resource_name=${5:-'mlnxnics'}
 
     local pf_device_id=$(get_pf_device_id "${project}-worker")
