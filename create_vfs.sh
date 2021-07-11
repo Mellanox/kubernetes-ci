@@ -6,6 +6,7 @@
 interface=""
 vfs_num=""
 set_vfs_macs_flag="false"
+isSwitchdev="false"
 
 vendor_id=""
 vfs_pci_list=""
@@ -36,6 +37,11 @@ while test $# -gt 0; do
    --set-vfs-macs)
       set_vfs_macs_flag="true"
       shift
+      ;;
+
+   --switchdev)
+      isSwitchdev="true"
+      shift
       ;; 
    
 
@@ -54,6 +60,9 @@ to create on the interface.
 
         --set-vfs-macs)					Set vfs macs for \
 rdma exclusive mode bug.
+
+        --switchdev)					Enable switchdev \
+mode for the PF.
 "
       exit 0
       ;;
@@ -111,6 +120,49 @@ set_vfs_macs(){
       echo "$pci" > /sys/bus/pci/drivers/mlx5_core/bind
    done
 }
+
+get_vfs_pcis(){
+   grep PCI_SLOT_NAME /sys/class/net/"$interface"/device/virtfn*/uevent | cut -d'=' -f2
+}
+
+unbind_vfs(){
+   local status=0
+
+   for pci in $(get_vfs_pcis)
+   do
+      echo "$pci" > /sys/bus/pci/drivers/mlx5_core/unbind
+      let status=$status+$?
+   done
+
+   return $status
+}
+
+enable_switchdev_for_interface(){
+   interface_pci=$(grep PCI_SLOT_NAME /sys/class/net/"$interface"/device/uevent\
+                  | cut -d'=' -f2 -s)
+   /usr/sbin/devlink dev eswitch set pci/"$interface_pci" mode switchdev
+   return $?
+}
+
+bind_vfs(){
+   local status=0
+
+   for pci in $(get_vfs_pcis)
+   do
+      echo "$pci" > /sys/bus/pci/drivers/mlx5_core/bind
+      let status=$status+$?
+   done
+
+   return $status
+}
+
+enable_switchdev(){
+    if ! unbind_vfs;then return 1;fi
+
+    if ! enable_switchdev_for_interface;then return 1;fi
+
+    if ! bind_vfs;then return 1;fi
+}
 ##################################################
 ##################################################
 ##############   validation   ####################
@@ -153,6 +205,10 @@ configure_vfs
 
 if [[ "$set_vfs_macs_flag" == "true" ]];then
    set_vfs_macs
+fi
+
+if [[ "$isSwitchdev" == "true" ]];then
+   enable_switchdev
 fi
 
 ip link set "$interface" up

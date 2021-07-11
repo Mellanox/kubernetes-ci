@@ -1,0 +1,9 @@
+---
+- include_role:
+    name: projects-common/get-mlx-interfaces
+- include_role:
+    name: projects-common/create-vfs
+  loop: "{{ pfs }}"
+  loop_control:
+    loop_var: pf
+

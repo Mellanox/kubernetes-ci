@@ -1,0 +1,14 @@
+---
+- block:
+    - name: Read phys_port_name for {{ pf_candidate }}
+      command:
+        cmd: cat /sys/class/net/{{ pf_candidate }}/phys_port_name
+      register: pf_phys_port_name_output
+    - name: Found PF {{ pf_candidate }}
+      set_fact:
+        pfs: "{{ pfs + [pf_candidate] }}"
+      when: pf_phys_port_name_output.stdout is match("p\d+")
+  rescue:
+    - name: Found PF {{ pf_candidate }}
+      set_fact:
+        pfs: "{{ pfs + [pf_candidate] }}"

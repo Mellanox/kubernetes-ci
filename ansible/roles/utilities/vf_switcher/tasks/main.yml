@@ -1,9 +1,11 @@
 ---
 - name: Get mellanox intefaces
-  include: "{{ playbook_dir }}/projects/tasks/get_mlx_interfaces.yml"
+  include_role:
+    name: projects-common/get-mlx-interfaces
 
 - name: Get worker nodes
-  include: "{{ playbook_dir }}/projects/tasks/register_kind_nodes.yml"
+  include_role:
+    name: projects-common/register-kind-nodes
 
 - name: Render vf-switcher config
   block:

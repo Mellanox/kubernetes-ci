@@ -1,0 +1,9 @@
+---
+- name: Read link for PF {{ pf }}
+  stat:
+    path: /sys/class/net/{{ pf }}/device
+  register: pf_link
+- name: Get PF pci address
+  set_fact:
+    pf_infos: "{{ pf_infos | default([]) + [{'name': pf, 'pci_address': pf_link.stat.lnk_target | basename}] }}"
+

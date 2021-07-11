@@ -1,0 +1,6 @@
+---
+- name: Create Udev Rules
+  hosts: kind_nodes
+  roles:
+    - projects-common/create-udev-rule
+

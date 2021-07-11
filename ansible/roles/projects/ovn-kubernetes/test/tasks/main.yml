@@ -1,0 +1,34 @@
+---
+- name: Get nodes
+  include_role:
+    name: projects-common/register-kind-nodes
+- name: Render network attachment definition
+  template:
+    src: network-attachment-definition.yaml.j2
+    dest: "{{ artifacts }}/network-attachment-definition.yaml"
+- name: Deploy network attachment definition
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/network-attachment-definition.yaml"
+  include_role:
+    name: projects-common/deploy-kubernetes-object-from-file
+- include_tasks: deploy-test-pods.yml
+  loop: "{{ pods_names }}"
+  loop_control:
+    loop_var: pod_name
+    index_var: idx
+- name: Send traffic between pods
+  collections:
+    - community.kubernetes
+  block:
+    - k8s_exec:
+        namespace: default
+        pod: "{{ pod1_name }}"
+        command: ping {{ pod_ips[1] }} -c 1
+        kubeconfig: "{{ kubeconfig }}"
+        context: "{{ k8s_context }}"
+      register: traffic_result
+    - assert:
+        success_msg: Traffic between pods sent successfully
+        fail_msg: Failed to send traffic between pods
+        that:
+          - "traffic_result.return_code == 0"

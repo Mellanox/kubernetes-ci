@@ -1,8 +1,0 @@
----
-- name: Undeploy ovn-kubernetes components
-  k8s:
-    src: "{{ artifacts }}/{{ item }}.yaml"
-    state: absent
-    kubeconfig: "{{ kubeconfig }}"
-    context: "{{ k8s_context }}"
-  loop: "{{ ovn_k8s_deployments|reverse|list }}"

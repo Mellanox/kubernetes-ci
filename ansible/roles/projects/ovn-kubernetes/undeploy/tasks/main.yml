@@ -1,0 +1,13 @@
+---
+- name: Undeploy ovn-kubernetes components
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/{{ ovn_kubernetes_object }}.yaml"
+  include_role:
+    name: projects-common/undeploy-kubernetes-object-from-file
+  loop: "{{ ovn_k8s_deployments|reverse|list }}"
+  loop_control:
+    loop_var: ovn_kubernetes_object
+- include_role:
+    name: projects-common/undeploy-multus
+- include_role:
+    name: projects-common/undeploy-sriov-device-plugin

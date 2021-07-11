@@ -12,19 +12,25 @@ export PHASES_TO_RUN=("${KIND_CI_PHASES[@]}")
 usage() {
   echo "usage: run_kind_ci.sh [[--project <name>] [--phases <phases>] [--skip-phases <phases>]"
   echo "                       [--num-workers <num>] [--kind-config <conf-fil>] [--kubeconfig <path>]"
-  echo "                       [--kind-node-image <image>] [--interfaces-type <interfaces-type>] [-h]]"
+  echo "                       [--kind-node-image <image>] [--pr <num>] [--num-vfs <num>] [--switchdev]"
+  echo "                       [--device-plugin-prefix <prefix>] [--device-plugin-resource <name>] [-h]]"
   echo ""
-  echo "--project              Project to run CI: ${KIND_CI_PROJECTS[*]}"
-  echo "                       Required field"
-  echo "--phases               Comma separated phases to run, if presented ignores --skip-phases. phases: ${KIND_CI_PHASES[*]}"
-  echo "--skip-phases          Comma separated phases, phases: ${KIND_CI_PHASES[*]}"
-  echo "--num-workers          Number of worker nodes. DEFAULT: 2 worker"
-  echo "--interfaces-type      Specify the interfaces type to switch into the kind node. support: "eth", "ib", or "both". Default: eth"
-  echo "--kind-config          Kind configuration file, if provided skip rendering related parameters"
-  echo "                       if provided, ignores rendering related parameters (num-workers)"
-  echo "--kubeconfig           KUBECONFIG for kind cluster"
-  echo "--kind-node-image      Kind node image to use"
-  echo "--pr                   Pull Request number"
+  echo "--project                  Project to run CI: ${KIND_CI_PROJECTS[*]}"
+  echo "                           Required field"
+  echo "--phases                   Comma separated phases to run, if presented ignores --skip-phases. phases: ${KIND_CI_PHASES[*]}"
+  echo "--skip-phases              Comma separated phases, phases: ${KIND_CI_PHASES[*]}"
+  echo "--num-workers              Number of worker nodes. DEFAULT: 2 worker"
+  echo "--pf-per-worker            How many PFs to switch for each worker node"
+  echo "--interfaces-type          Specify the interfaces type to switch into the kind node. support: "eth", "ib", or "both". Default: eth"
+  echo "--kind-config              Kind configuration file, if provided skip rendering related parameters"
+  echo "                           if provided, ignores rendering related parameters (num-workers)"
+  echo "--kubeconfig               KUBECONFIG for kind cluster"
+  echo "--kind-node-image          Kind node image to use"
+  echo "--pr                       Pull Request number"
+  echo "--num-vfs                  Number of VFs to create in utilities phase. DEFAULT: 4 VFs. if -1 the create-vfs role will be skipped"
+  echo "--switchdev                Enable switchdev mode for created VFs in utilities phase"
+  echo "--device-plugin-prefix     Device plugin prefix. DEFAULT nvidia.com"
+  echo "--device-plugin-resource   Device plugin prefix. DEFAULT sriov"
   echo ""
 }
 
@@ -141,6 +147,26 @@ parse_args() {
       fi
       export PULL_REQUEST=$1
       ;;
+    --num-vfs)
+      shift
+      if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "Invalid num-vfs: $1"
+        usage
+        exit 1
+      fi
+      export NUM_VFS=$1
+      ;;
+    --switchdev)
+      export SWITCHDEV=true
+      ;;
+    --device-plugin-prefix)
+      shift
+      export DEVICE_PLUGIN_PREFIX=$1
+      ;;
+    --device-plugin-resource)
+      shift
+      export DEVICE_PLUGIN_RESOURCE=$1
+      ;;
 
     -h | --help)
       usage
@@ -173,20 +199,29 @@ set_default_params() {
   export KUBECONFIG=${KUBECONFIG:-$HOME/admin.conf}
   export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-''}"
   export INTERFACES_TYPE=${INTERFACES_TYPE:-"eth"}
+  export NUM_VFS="${NUM_VFS:-4}"
+  export SWITCHDEV="${SWITCHDEV:-false}"
+  export DEVICE_PLUGIN_PREFIX=${DEVICE_PLUGIN_PREFIX:-"nvidia.com"}
+  export DEVICE_PLUGIN_RESOURCE=${DEVICE_PLUGIN_RESOURCE:-"sriov"}
 }
 
 print_params() {
   echo "Using these parameters to KIND CI"
   echo ""
-  echo "WORKSPACE       = ${WORKSPACE}"
-  echo "PHASES_TO_RUN   = ${PHASES_TO_RUN[*]}"
-  echo "PROJECT         = ${PROJECT}"
-  echo "KIND_NUM_WORKER = ${KIND_NUM_WORKER}"
-  echo "KIND_NODE_IMAGE = ${KIND_NODE_IMAGE}"
-  echo "KIND_CONFIG     = ${KIND_CONFIG}"
-  echo "KUBECONFIG      = ${KUBECONFIG}"
-  echo "PULL_REQUEST    = ${PULL_REQUEST}"
-  echo "INTERFACES_TYPE = ${INTERFACES_TYPE}"
+  echo "WORKSPACE                 = ${WORKSPACE}"
+  echo "PHASES_TO_RUN             = ${PHASES_TO_RUN[*]}"
+  echo "PROJECT                   = ${PROJECT}"
+  echo "KIND_NUM_WORKER           = ${KIND_NUM_WORKER}"
+  echo "PF_PER_WORKER             = ${PF_PER_WORKER}"
+  echo "KIND_NODE_IMAGE           = ${KIND_NODE_IMAGE}"
+  echo "KIND_CONFIG               = ${KIND_CONFIG}"
+  echo "KUBECONFIG                = ${KUBECONFIG}"
+  echo "PULL_REQUEST              = ${PULL_REQUEST}"
+  echo "INTERFACES_TYPE           = ${INTERFACES_TYPE}"
+  echo "NUM_VFS                   = ${NUM_VFS}"
+  echo "SWITCHDEV                 = ${SWITCHDEV}"
+  echo "DEVICE_PLUGIN_PREFIX      = ${DEVICE_PLUGIN_PREFIX}"
+  echo "DEVICE_PLUGIN_RESOURCE    = ${DEVICE_PLUGIN_RESOURCE}"
   echo ""
 }
 

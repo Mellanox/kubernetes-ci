@@ -1,0 +1,5 @@
+{%- for pf_info in pf_infos %}
+
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", KERNELS=="{{ pf_info.pci_address }}", NAME="{{ pf_info.name }}"
+
+{%- endfor %}

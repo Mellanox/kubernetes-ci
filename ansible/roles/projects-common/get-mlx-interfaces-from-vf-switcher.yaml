@@ -1,0 +1,11 @@
+---
+- set_fact:
+    pf_names: []
+- name: Read VF Switcher config file
+  set_fact:
+    vf_switcher_conf: "{{ item | from_yaml }}"
+  with_file:
+    - "{{ artifacts }}/vf-switcher.yaml"
+- set_fact:
+    pf_names: "{{ pf_names + item.pfs }}"
+  loop: "{{ vf_switcher_conf }}"

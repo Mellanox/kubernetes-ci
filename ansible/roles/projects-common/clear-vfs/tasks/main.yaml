@@ -1,0 +1,5 @@
+---
+- name: Clear VFs for PF {{ pf }}
+  shell:
+    sudo create_vfs.sh -i "{{ pf }}" -v "0"
+

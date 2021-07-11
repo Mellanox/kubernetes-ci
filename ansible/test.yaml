@@ -3,8 +3,11 @@
   hosts: kind_nodes
   collections:
     - community.kubernetes
+  roles:
+    - projects-common/assert-project-role
   tasks:
-    - include_tasks: projects/tasks/verify-project.yaml
     - name: Read {{ project }} vars
-      include_vars: projects/{{ project }}/vars.yaml
-    - include_tasks: projects/{{ project }}/tasks/test.yaml
+      include_vars: roles/projects/{{ project }}/vars.yml
+    - name: Test {{ project }}
+      include_role:
+        name: projects/{{ project }}/test

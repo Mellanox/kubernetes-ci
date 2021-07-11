@@ -1,0 +1,23 @@
+---
+- name: Deploy {{ deployment_object }}
+  vars:
+    kubernetes_object_file: "{{ project_dir }}/dist/yaml/{{ deployment_object }}.yaml"
+  include_role:
+    name: projects-common/deploy-kubernetes-object-from-file
+- name: Get {{ deployment_object }} pods list
+  k8s_info:
+    kind: Pod
+    label_selectors:
+      - name = {{ deployment_object }}
+    kubeconfig: "{{ kubeconfig }}"
+    context: "{{ k8s_context }}"
+  register: deployment_pods
+- vars:
+    pod_namespace: ovn-kubernetes
+  block:
+    - name: Verify {{ deployment_object }} pods are running
+      include_role:
+        name: projects-common/verify-pod-running
+      vars:
+        pod_name: "{{ item.metadata.name }}"
+      loop: "{{ deployment_pods.resources }}"

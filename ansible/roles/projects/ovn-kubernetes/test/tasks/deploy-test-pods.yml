@@ -1,0 +1,42 @@
+---
+- name: Render pod file {{ pod_name }}
+  template:
+    src: pod.yaml.j2
+    dest: "{{ artifacts }}/{{ pod_name }}.yaml"
+- name: Deploy pod {{ pod_name }}
+  vars:
+    kubernetes_object_file: "{{ artifacts }}/{{ pod_name }}.yaml"
+  include_role:
+    name: projects-common/deploy-kubernetes-object-from-file
+- block:
+    - include_role:
+        name: projects-common/verify-pod-running
+    - name: Read pod ip and ovn-kubernetes annotations ip
+      set_fact:
+        pod_ip: "{{ verify_pod.resources[0].status.podIP }}"
+        pod_ovn_annotation: "{{ verify_pod.resources[0].metadata.annotations['k8s.ovn.org/pod-networks'] | from_json }}"
+    - name: Verify pod ip is from ovn-kubernetes
+      assert:
+        success_msg: ovn-kubernetes test pod created successfully
+        fail_msg: Failed to create ovn-kubernetes
+        that:
+          - "pod_ip in pod_ovn_annotation.default.ip_address"
+    - set_fact:
+        pod_ips: "{{ pod_ips + [pod_ip] }}"
+    - name: Verfiy VF in pod
+      collections:
+        - community.kubernetes
+      block:
+        - name: Read pod VF device vendor
+          k8s_exec:
+            namespace: default
+            pod: "{{ pod_name }}"
+            kubeconfig: "{{ kubeconfig }}"
+            context: "{{ k8s_context }}"
+            command: cat /sys/class/net/eth0/device/vendor
+          register: vf_vendor
+        - assert:
+            success_msg: "Pod {{ pod_name }} has a VF"
+            fail_msg: "Pod {{ pod_name }} does not have a VF"
+            that:
+              - "mlnx_vendor_id in vf_vendor.stdout"

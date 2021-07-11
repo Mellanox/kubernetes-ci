@@ -11,4 +11,5 @@ unsupported_interfaces_list: [ "0x4115", "0x1015" ]
 pod_subnet: "{{ lookup('env', 'POD_CIDER') }}"
 service_subnet: "{{ lookup('env', 'SERVICE_CIDER') }}"
 interfaces_type: "{{ lookup('env', 'INTERFACES_TYPE') }}"
+num_vfs: "{{ lookup('env', 'NUM_VFS') }}"
 
