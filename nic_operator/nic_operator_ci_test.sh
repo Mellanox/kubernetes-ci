@@ -72,6 +72,13 @@ function main {
         exit_code $status
     fi
 
+    test_ofed_and_host_device_ib
+    let status=$status+$?
+    if [[ "$status" != "0" ]]; then
+        echo "Error: Test deploying OFED and infiniband host device failed!!"
+        exit_code $status
+    fi
+
     test_nv_peer_mem
     let status=status+$?
     if [ "$status" != 0 ]; then
