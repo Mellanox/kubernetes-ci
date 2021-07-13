@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 export WORKSPACE=${WORKSPACE:-/tmp/k8s_$$}
 export LOGDIR=$WORKSPACE/logs
@@ -295,9 +295,13 @@ function get_nic_operator_resources_namespace {
 }
 
 function deploy_gpu_operator {
+    local netns="$1"
+
     local values_file_name="$ARTIFACTS/gpu-operator-values.yaml"
 
-    render_gpu_operator_value "$values_file_name"
+    pull_gpu_driver_container_image "$netns"
+
+    render_gpu_operator_value "$values_file_name" "$netns"
 
     helm repo add nvidia https://nvidia.github.io/gpu-operator
     helm repo update
@@ -321,9 +325,14 @@ function get_cluster_policy_state {
 
 function render_gpu_operator_value {
     local file="${1:-$ARTIFACTS/gpu-operator-values.yaml}"
+    local netns="${2}"
 
     if [[ ! -f "$file" ]];then
         touch "$file"
+    fi
+
+    if [[ -n "$netns" ]];then
+        yaml_write "operator.defaultRuntime" "containerd" "$file"
     fi
 
     yaml_write "node-feature-discovery.config" "\
@@ -350,6 +359,35 @@ sources:
     yaml_write "node-feature-discovery.worker.tolerations[0].operator" "Equal" "$file"
     yaml_write "node-feature-discovery.worker.tolerations[0].value" "present" "$file"
     yaml_write "node-feature-discovery.worker.tolerations[0].effect" "NoSchedule" "$file"
+}
+
+function pull_gpu_driver_container_image {
+    local kind_netns="$1"
+
+    local gpu_default_file_name="${ARTIFACTS}/upstream-gpu-values.yaml"
+
+    local gpu_operator_values_url="https://raw.githubusercontent.com/NVIDIA/gpu-operator/${GPU_OPERATOR_VERSION}/deployments/gpu-operator/values.yaml"
+
+    if [[ -e "$gpu_default_file_name" ]];then
+        sudo rm -rf "$gpu_default_file_name"
+    fi
+
+    wget $gpu_operator_values_url -O "$gpu_default_file_name"
+
+    local image_repo=$(yaml_read "driver.repository" "$gpu_default_file_name")
+    local image_name=$(yaml_read "driver.image" "$gpu_default_file_name")
+    local image_version=$(yaml_read "driver.version" "$gpu_default_file_name")
+
+    local image="${image_repo}/${image_name}:${image_version}-$(get_distro)$(get_distro_version)"
+
+    sudo docker pull $image
+
+    if [[ -n "$kind_netns" ]];then
+        local kind_image_name="${image_repo}/${image_name}:${image_version}-$(get_distro)$(get_kind_distro_version)"
+        sudo docker tag $image $kind_image_name
+        sudo docker rmi $image
+        upload_image_to_kind "$kind_image_name" "$kind_netns"
+    fi
 }
 
 function pull_general_component_image {
@@ -404,6 +442,13 @@ function pull_nvpeer_container_image {
     local image="${image_repo}/${image_name}-${image_version}:amd64-$(get_distro)$(get_distro_version)"
 
     sudo docker pull $image
+
+    if [[ -n "$kind_netns" ]];then
+        local kind_image_name="${image_repo}/${image_name}-${image_version}:amd64-$(get_distro)$(get_kind_distro_version)"
+        sudo docker tag $image $kind_image_name
+        sudo docker rmi $image
+        upload_image_to_kind "$kind_image_name" "$kind_netns"
+    fi
 }
 
 function pull_sriov_operator_image {
@@ -427,7 +472,7 @@ function pull_network_operator_images {
 
     pull_general_component_image "rdmaSharedDevicePlugin" "$IMAGES_SRC_FILE" "$kind_netns"
 
-    pull_nvpeer_container_image "nvPeerDriver" "$IMAGES_SRC_FILE"
+    pull_nvpeer_container_image "nvPeerDriver" "$IMAGES_SRC_FILE" "$kind_netns"
 
     pull_general_component_image "secondaryNetwork.cniPlugins" "$IMAGES_SRC_FILE" "$kind_netns"
 

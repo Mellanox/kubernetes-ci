@@ -974,7 +974,7 @@ function test_gpu_write_bandwidth {
     pod_name1=$1
     echo "Testing gpu direct between $pod_name1 and $pod_name2"
 
-    ip_1=$(/usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1 | grep inet | awk '{print $2}')
+    ip_1=$(/usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1 | grep inet | grep -v inet6 | awk '{print $2}')
     /usr/local/bin/kubectl exec -i $pod_name1 -- ifconfig net1
     echo "$pod_name1 has ip ${ip_1}"
 
