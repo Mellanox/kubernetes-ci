@@ -11,6 +11,7 @@ export POLL_INTERVAL=${POLL_INTERVAL:-10}
 
 export PROJECT_URL=${PROJECT_URL}
 export PROJECT_PR=${PROJECT_PR}
+export PROJECT_PR_PREFIX=${PROJECT_PR_PREFIX:-'+refs/pull'}
 export PROJECT_NAME=${PROJECT_NAME}
 
 clone_project(){
@@ -25,10 +26,10 @@ clone_project(){
     pushd $WORKSPACE/"$PROJECT_NAME"
 
     # Check if part of Pull Request and
-    git fetch --tags --progress ${PROJECT_URL} +refs/pull/${PROJECT_PR}/*:refs/remotes/origin/pull-requests/${PROJECT_PR}/*
+    git fetch --tags --progress ${PROJECT_URL} ${PROJECT_PR_PREFIX}/${PROJECT_PR}/merge:refs/remotes/origin/pull-requests/${PROJECT_PR}/merge
     let status=$status+$?
 
-    git checkout pull-requests/${PROJECT_PR}/head
+    git checkout pull-requests/${PROJECT_PR}/merge
     let status=$status+$?
 
     git log -p -1 > $ARTIFACTS/${PROJECT_NAME}-git.txt
