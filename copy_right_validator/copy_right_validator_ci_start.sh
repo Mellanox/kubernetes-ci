@@ -41,11 +41,12 @@ clone_project(){
 
 validate_copyrights(){
     local status=0
-    local exclude_list=" |\.md"
+    local include_list="\.go$|\.py$|\.sh$|Makefile.*"
+    local exclude_list=" "
 
     pushd "$WORKSPACE"/"$PROJECT_NAME"
 
-    for file in $(git diff --name-status master HEAD | grep -E '^A' | awk '{print $2}' | grep -Ev "${exclude_list}");do
+    for file in $(git diff --name-status master HEAD | grep -E '^A' | awk '{print $2}' | grep -E "${include_list}" | grep -Ev "${exclude_list}");do
         echo "validiting $file to match \"$(date +%Y) NVIDIA CORPORATION & AFFILIATES\"....."
 
         if ! grep -q "$(date +%Y) NVIDIA CORPORATION & AFFILIATES" "${WORKSPACE}/${PROJECT_NAME}/${file}";then
