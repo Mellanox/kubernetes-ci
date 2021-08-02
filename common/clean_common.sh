@@ -234,7 +234,7 @@ function get_pod_log {
 
     echo "Collecting $pod_name logs..."
 
-    kubectl logs -n "$pod_namespace" "$pod_name" > ${log_dir}/${pod_name}.log
+    kubectl logs -n "$pod_namespace" "$pod_name"  --all-containers > ${log_dir}/${pod_name}.log
 
     if [[ -f ${log_dir}/${pod_name}.log ]];then
         echo "Logs wrote to ${log_dir}/${pod_name}.log!"
