@@ -10,17 +10,27 @@ export TIMEOUT=${TIMEOUT:-180}
 function test_image {
     echo "Scanning Network Operator image for security vulnerability..."
     echo ""
-
     git clone https://ikolodiazhny:${gitlab_token}@gitlab-master.nvidia.com/sectooling/scanning/contamer.git
     virtualenv .venv
     source .venv/bin/activate
     cd contamer
+
     pip3 install -r requirements.txt
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Failed install Contamer dependencies!!"
+        return $status
+    fi
+
     python3 contamer.py -ls mellanox/network-operator:latest
+    let status=$status+$?
+    if [ "$status" != 0 ]; then
+        echo "Error: Contamer scanning failed!!"
+        return $status
+    fi
 
 
-
-    echo "test_image  test success!!!"
+    echo "test_image test success!!!"
     echo ""
     return 0
 }
