@@ -89,7 +89,7 @@ create_sriov_node_policy(){
     fi
 
 
-    sleep 3
+    sleep 120
 
     wait_sriov_state
     let status=$status+$?
