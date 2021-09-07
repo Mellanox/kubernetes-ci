@@ -7,18 +7,22 @@ export ARTIFACTS=$WORKSPACE/artifacts
 
 export KUBECONFIG=${KUBECONFIG:-/etc/kubernetes/admin.conf}
 
+project=sriov-network-operator
+
 function main {
     mkdir -p $WORKSPACE
     mkdir -p $LOGDIR
     mkdir -p $ARTIFACTS
 
-    delete_pods
-
     collect_pods_logs
 
     collect_nodes_info
 
+    get_sriov_node_state "${project}-worker" "sriov-network-operator"
+
     collect_vf_switcher_logs
+
+    delete_pods
 
     sudo systemctl stop vf-switcher
 

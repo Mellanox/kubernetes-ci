@@ -265,6 +265,13 @@ function get_pod_info {
     fi
 }
 
+function get_sriov_node_state {
+    local state_name="$1"
+    local state_namespace="$2"
+
+    kubectl get sriovnetworknodestates -n "$state_namespace" "$state_name" -o yaml > "${LOGDIR}"/"${state_name}_sriov_state.yaml"
+}
+
 function get_node_info {
     local node_line="$1"
     local info_dir="$2"
