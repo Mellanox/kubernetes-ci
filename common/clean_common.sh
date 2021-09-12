@@ -234,7 +234,7 @@ function get_pod_log {
 
     echo "Collecting $pod_name logs..."
 
-    kubectl logs -n "$pod_namespace" "$pod_name" > ${log_dir}/${pod_name}.log
+    kubectl logs -n "$pod_namespace" "$pod_name"  --all-containers > ${log_dir}/${pod_name}.log
 
     if [[ -f ${log_dir}/${pod_name}.log ]];then
         echo "Logs wrote to ${log_dir}/${pod_name}.log!"
@@ -263,6 +263,13 @@ function get_pod_info {
         echo "${info_dir}/${pod_name}.log was not found, writting info failed!"
         echo ""
     fi
+}
+
+function get_sriov_node_state {
+    local state_name="$1"
+    local state_namespace="$2"
+
+    kubectl get sriovnetworknodestates -n "$state_namespace" "$state_name" -o yaml > "${LOGDIR}"/"${state_name}_sriov_state.yaml"
 }
 
 function get_node_info {
@@ -390,7 +397,12 @@ function delete_cnis_bins_and_confs {
 function clear_mlnx_vfs {
     local mlnx_interfaces=$(get_auto_net_device 0)
 
+    local old_IFS=$IFS
+    IFS=' '
+
     for interface in $mlnx_interfaces;do
         sudo create_vfs.sh -i "$interface" -v "0"
     done
+
+    IFS=$old_IFS
 }

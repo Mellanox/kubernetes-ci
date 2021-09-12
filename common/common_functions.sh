@@ -326,7 +326,7 @@ function deploy_calico {
 
     kubectl create -f "$ARTIFACTS"/calico.yaml
 
-    wait_pod_state "calico-node" "Running"
+    wait_pod_state "calico-node" "Running" "$ARTIFACTS/calico.yaml"
 
     let status=status+$?
     if [ "$status" != 0 ]; then
@@ -405,13 +405,24 @@ function yaml_read {
 function wait_pod_state {
     pod_name="$1"
     state="$2"
+    local pod_file="$3"
+
     let stop=$(date '+%s')+$TIMEOUT
     d=$(date '+%s')
     while [ $d -lt $stop ]; do
         echo "Waiting for pod to become $state"
-        pod_status=$(kubectl get pods -A | grep "$pod_name" | grep "$state")
-        if [ -n "$pod_status" ]; then
+        pod_status=$(kubectl get pod -A | grep "$pod_name" | head -n 1 | awk '{print $4}')
+        if [ "$pod_status" == "$state" ]; then
             return 0
+        elif [[ "$pod_status" == "UnexpectedAdmissionError" ]];then
+            if [[ -z "$pod_file" ]];then
+                echo "ERROR: UnexpectedAdmissionError encountered and no pod file provided!"
+                return 1
+            fi
+
+            kubectl delete -f "$pod_file"
+            sleep 10
+            kubectl create -f "$pod_file" 
         fi
         kubectl get pods -A| grep "$pod_name"
         sleep ${POLL_INTERVAL}
@@ -568,7 +579,7 @@ function create_test_pod {
 
     kubectl create -f $file
 
-    wait_pod_state $pod_name 'Running'
+    wait_pod_state $pod_name 'Running' "$file"
     if [[ "$?" != 0 ]];then
         echo "Error Running $pod_name!!"
         return 1
@@ -592,7 +603,7 @@ function create_rdma_test_pod {
     render_test_pod_rdma_resources $rdma_resource_name $test_pod_file
 
     kubectl create -f "$ARTIFACTS"/"$pod_name".yaml
-    wait_pod_state $pod_name 'Running'
+    wait_pod_state $pod_name 'Running' "$ARTIFACTS"/"$pod_name".yaml
     if [[ "$?" != 0 ]];then
         echo "Error Running $pod_name!!"
         return 1
@@ -618,7 +629,7 @@ function create_gpu_direct_test_pod {
     render_test_pod_gpu_resources "$test_pod_file"
 
     kubectl create -f "$ARTIFACTS"/"$pod_name".yaml
-    wait_pod_state $pod_name 'Running'
+    wait_pod_state $pod_name 'Running' "$ARTIFACTS"/"$pod_name".yaml
     if [[ "$?" != 0 ]];then
         echo "Error Running $pod_name!!"
         return 1
@@ -832,6 +843,9 @@ function get_auto_net_device {
 
     local index=0
 
+    local old_IFS=$IFS
+    IFS=' '
+
     for pci in $pcis;do
         interfaces+="$(ls /sys/bus/pci/devices/"0000:$pci"/net/) "
         ((index++))
@@ -839,6 +853,8 @@ function get_auto_net_device {
             break
         fi
     done
+
+    IFS=$old_IFS
 
     echo $interfaces
 }

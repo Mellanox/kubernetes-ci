@@ -89,7 +89,7 @@ create_sriov_node_policy(){
     fi
 
 
-    sleep 3
+    sleep 120
 
     wait_sriov_state
     let status=$status+$?
@@ -99,6 +99,17 @@ create_sriov_node_policy(){
     fi
 
     set_sriov_operator_vfs_macs "" "$(get_pfs_net_name ${project}-worker)"
+
+    # Note(abdallahyas): Restarting the sriov network device plugin as workaround for the
+    # issue with the operator latest image that it does not do that.
+    # This should be removed after the issue is found and fixed, Issue
+    # can be tracked in https://redmine.mellanox.com/issues/2748244
+
+    echo "Restarting the sriov network device plugin pod"
+
+    local device_plugin_pod_name="$(kubectl get pods -n ${policy_namespace} -o name | grep sriov-device-plugin | cut -d / -f 2)"
+
+    kubectl delete pod -n "${policy_namespace}" "${device_plugin_pod_name}"
 
     return 0
 }

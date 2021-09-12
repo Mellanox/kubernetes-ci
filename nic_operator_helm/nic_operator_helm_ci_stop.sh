@@ -26,11 +26,13 @@ function main {
     mkdir -p $LOGDIR
     mkdir -p $ARTIFACTS
 
-    delete_pods
-    
     collect_pods_logs
 
     collect_nodes_info
+
+    get_sriov_node_state "${project}-worker" "$(get_nic_operator_namespace)"
+
+    delete_pods
 
     delete_nic_operator_via_helm
 

@@ -8,15 +8,12 @@
     project_dir: "{{ temp_dir.path }}"
 - include_role:
     name: projects-common/git-clone-repository
-- name: Add sudo to docker build in Makefile
-  replace:
-    path: "{{ project_dir }}/dist/images/Makefile"
-    regexp: "docker build"
-    replace: "sudo docker build"
 - name: Build ovn-kubernetes image
   make:
     chdir: "{{ project_dir }}/dist/images"
     target: fedora
+  environment:
+    OCI_BIN: "sudo docker"
 - name: Load image into cluster
   command:
     cmd: sudo kind load docker-image {{ ovn_image }} --name {{ project }}
